@@ -7,12 +7,13 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
 // Firebase configuration
 // You can either use environment variables or replace with your actual config
 const firebaseConfig = {
-  apiKey: "AIzaSyCYWJYpby44A4prr82rRtTIoXTDrgOz4e4",
-  authDomain: "bifyt-f27b1.firebaseapp.com",
-  projectId: "bifyt-f27b1",
-  storageBucket: "bifyt-f27b1.firebasestorage.app",
-  messagingSenderId: "714118611053",
-  appId: "1:714118611053:web:c67b2aca6d204afe903f64"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
