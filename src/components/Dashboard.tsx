@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Activity, 
-  Target, 
-  Clock, 
-  Flame, 
+import {
+  Activity,
+  Target,
+  Clock,
+  Flame,
   Footprints,
   Plus,
   BarChart3,
@@ -18,18 +18,18 @@ import {
   Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
   getDoc,
   orderBy,
   limit,
-  Timestamp 
+  Timestamp
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase'; // Assuming db is already configured here
 
 // Types for real data
 interface DailyMetrics {
@@ -52,7 +52,7 @@ interface Goal {
   achieved: boolean;
 }
 
-interface Activity {
+interface UserActivity { // Renamed from 'Activity' to avoid conflict with lucide-react Activity icon
   id: string;
   type: string;
   duration: number;
@@ -75,11 +75,14 @@ export function Dashboard() {
     workouts: 0
   });
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+  const [recentActivities, setRecentActivities] = useState<UserActivity[]>([]);
 
   // Fetch dashboard data from Firestore
   const fetchDashboardData = async () => {
-    if (!currentUser?.uid) return;
+    if (!currentUser?.uid) {
+      setIsLoading(false); // Stop loading if no user is logged in
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -98,7 +101,7 @@ export function Dashboard() {
         where('date', '<', Timestamp.fromDate(tomorrow))
       );
       const activitiesSnapshot = await getDocs(activitiesQuery);
-      
+
       // Calculate daily metrics from activities
       let totalCalories = 0;
       let totalActiveMinutes = 0;
@@ -106,11 +109,11 @@ export function Dashboard() {
       let workoutCount = 0;
 
       activitiesSnapshot.forEach(doc => {
-        const activity = doc.data() as Activity;
+        const activity = doc.data() as UserActivity;
         totalCalories += activity.calories || 0;
         totalActiveMinutes += activity.duration || 0;
         totalDistance += activity.distance || 0;
-        if (activity.type.toLowerCase().includes('workout') || 
+        if (activity.type.toLowerCase().includes('workout') ||
             activity.type.toLowerCase().includes('strength') ||
             activity.type.toLowerCase().includes('training')) {
           workoutCount++;
@@ -121,7 +124,7 @@ export function Dashboard() {
       const userProfileRef = doc(db, 'users', currentUser.uid);
       const userProfileSnap = await getDoc(userProfileRef);
       const userProfile = userProfileSnap.data();
-      const steps = userProfile?.dailySteps || 0;
+      const steps = userProfile?.dailySteps || 0; // Assuming dailySteps might be stored in user profile
 
       setDailyMetrics({
         steps,
@@ -139,14 +142,14 @@ export function Dashboard() {
         orderBy('createdAt', 'desc')
       );
       const goalsSnapshot = await getDocs(goalsQuery);
-      
+
       const goalsData: Goal[] = [];
       goalsSnapshot.forEach(doc => {
         goalsData.push({ id: doc.id, ...doc.data() } as Goal);
       });
       setGoals(goalsData);
 
-      // Fetch recent activities
+      // Fetch recent activities (last 5, regardless of date for history tab)
       const recentActivitiesQuery = query(
         activitiesRef,
         where('userId', '==', currentUser.uid),
@@ -154,23 +157,25 @@ export function Dashboard() {
         limit(5)
       );
       const recentActivitiesSnapshot = await getDocs(recentActivitiesQuery);
-      
-      const activitiesData: Activity[] = [];
+
+      const activitiesData: UserActivity[] = [];
       recentActivitiesSnapshot.forEach(doc => {
-        activitiesData.push({ id: doc.id, ...doc.data() } as Activity);
+        activitiesData.push({ id: doc.id, ...doc.data() } as UserActivity);
       });
       setRecentActivities(activitiesData);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // Fallback to mock data if Firestore fails
+      // Fallback to mock data if Firestore fails or no data
       setDailyMetrics({
-        steps: 8432,
-        calories: 2450,
-        activeMinutes: 45,
-        distance: 6.2,
-        workouts: 2
+        steps: 0,
+        calories: 0,
+        activeMinutes: 0,
+        distance: 0,
+        workouts: 0
       });
+      setGoals([]);
+      setRecentActivities([]);
     } finally {
       setIsLoading(false);
     }
@@ -178,32 +183,42 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid]); // Re-fetch data when currentUser UID changes
 
   const handleLogout = async () => {
     try {
-      // Logout logic would be here
+      // Assuming useAuth provides a logout function
+      // If not, you'd integrate Firebase auth.signOut() here
+      // For now, it just logs a message
       console.log('Logout clicked');
+      // Redirect to login page after logout (example)
+      // history.push('/login');
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
   const getProgressPercentage = (current: number, target: number) => {
-    return Math.min((current / target) * 100, 100);
+    return target === 0 ? 0 : Math.min((current / target) * 100, 100);
   };
 
   const getActivityIcon = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'running': return <Footprints className="w-4 h-4" />;
-      case 'cycling': return <Activity className="w-4 h-4" />;
-      case 'strength training': return <Target className="w-4 h-4" />;
-      default: return <Activity className="w-4 h-4" />;
+      case 'running': return <Footprints className="w-4 h-4 text-black" />;
+      case 'cycling': return <Activity className="w-4 h-4 text-black" />;
+      case 'strength training': return <Target className="w-4 h-4 text-black" />;
+      case 'yoga': return <Activity className="w-4 h-4 text-black" />; // Example for another type
+      default: return <Activity className="w-4 h-4 text-black" />;
     }
   };
 
   const formatDate = (timestamp: Timestamp) => {
-    return timestamp.toDate().toLocaleDateString();
+    if (!timestamp) return 'N/A';
+    return timestamp.toDate().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   if (isLoading) {
@@ -230,20 +245,20 @@ export function Dashboard() {
               </Badge>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm">Welcome, {currentUser?.email}</span>
-              <Button asChild variant="outline" className="text-white border-white hover:bg-white hover:text-black">
+              <span className="text-sm">Welcome, {currentUser?.email || 'Guest'}</span>
+              <Button asChild variant="outline" className="bg-black text-white border-white hover:bg-white hover:text-black">
                 <Link to="/profile">
                   <User className="w-4 h-4 mr-2" />
                   Profile
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="text-white border-white hover:bg-white hover:text-black">
+              <Button asChild variant="outline" className="bg-black text-white border-white hover:bg-white hover:text-black">
                 <Link to="/settings">
                   <Settings className="w-4 h-4 mr-2" />
                   Settings
                 </Link>
               </Button>
-              <Button onClick={handleLogout} variant="outline" className="text-white border-white hover:bg-white hover:text-black">
+              <Button onClick={handleLogout} variant="outline" className="bg-black text-white border-white hover:bg-white hover:text-black">
                 Logout
               </Button>
             </div>
@@ -260,25 +275,25 @@ export function Dashboard() {
               <p className="text-gray-600">Track your fitness journey and achieve your goals</p>
             </div>
             <div className="flex space-x-2">
-              <Button asChild>
+              <Button asChild className="bg-black text-white hover:bg-gray-800">
                 <Link to="/activity/new">
                   <Plus className="w-4 h-4 mr-2" />
                   Log Activity
                 </Link>
               </Button>
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="border-black text-black hover:bg-black hover:text-white">
                 <Link to="/workouts">
                   <Target className="w-4 h-4 mr-2" />
                   Workouts
                 </Link>
               </Button>
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="border-black text-black hover:bg-black hover:text-white">
                 <Link to="/analytics">
                   <BarChart3 className="w-4 h-4 mr-2" />
                   Analytics
                 </Link>
               </Button>
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="border-black text-black hover:bg-black hover:text-white">
                 <Link to="/goals">
                   <Target className="w-4 h-4 mr-2" />
                   Set Goals
@@ -290,7 +305,7 @@ export function Dashboard() {
 
         {/* Daily Metrics Cards */}
         <div className="grid gap-6 mb-8 md:grid-cols-2 lg:grid-cols-5">
-          <Card>
+          <Card className="border-black">
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
                 <Footprints className="w-5 h-5 text-black" />
@@ -302,7 +317,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-black">
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
                 <Flame className="w-5 h-5 text-black" />
@@ -314,7 +329,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-black">
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
                 <Clock className="w-5 h-5 text-black" />
@@ -326,7 +341,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-black">
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
                 <Activity className="w-5 h-5 text-black" />
@@ -338,7 +353,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-black">
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
                 <Target className="w-5 h-5 text-black" />
@@ -353,17 +368,37 @@ export function Dashboard() {
 
         {/* Tabs Section */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="activities">Activities</TabsTrigger>
-            <TabsTrigger value="goals">Goals</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 bg-black text-white">
+            <TabsTrigger
+              value="overview"
+              className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=inactive]:bg-black data-[state=inactive]:text-white hover:bg-gray-800 hover:text-white"
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="activities"
+              className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=inactive]:bg-black data-[state=inactive]:text-white hover:bg-gray-800 hover:text-white"
+            >
+              Activities
+            </TabsTrigger>
+            <TabsTrigger
+              value="goals"
+              className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=inactive]:bg-black data-[state=inactive]:text-white hover:bg-gray-800 hover:text-white"
+            >
+              Goals
+            </TabsTrigger>
+            <TabsTrigger
+              value="history"
+              className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=inactive]:bg-black data-[state=inactive]:text-white hover:bg-gray-800 hover:text-white"
+            >
+              History
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
               {/* Recent Activities */}
-              <Card>
+              <Card className="border-black">
                 <CardHeader>
                   <CardTitle className="text-black">Recent Activities</CardTitle>
                   <CardDescription>Your latest fitness activities</CardDescription>
@@ -372,7 +407,7 @@ export function Dashboard() {
                   <div className="space-y-4">
                     {recentActivities.length > 0 ? (
                       recentActivities.map((activity) => (
-                        <div key={activity.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div key={activity.id} className="flex items-center justify-between p-3 border border-gray-300 rounded-lg">
                           <div className="flex items-center space-x-3">
                             {getActivityIcon(activity.type)}
                             <div>
@@ -394,7 +429,7 @@ export function Dashboard() {
               </Card>
 
               {/* Goal Progress */}
-              <Card>
+              <Card className="border-black">
                 <CardHeader>
                   <CardTitle className="text-black">Goal Progress</CardTitle>
                   <CardDescription>Track your fitness goals</CardDescription>
@@ -410,10 +445,13 @@ export function Dashboard() {
                               {goal.current}/{goal.target} {goal.unit}
                             </span>
                           </div>
-                          <Progress 
-                            value={getProgressPercentage(goal.current, goal.target)} 
-                            className="h-2"
+                          <Progress
+                            value={getProgressPercentage(goal.current, goal.target)}
+                            className="h-2 bg-gray-300 [&::-webkit-progress-bar]:bg-gray-300 [&::-webkit-progress-value]:bg-black [&::-moz-progress-bar]:bg-black" // Customizing progress bar for black fill
                           />
+                          <p className="text-xs text-gray-500">
+                            {Math.round(getProgressPercentage(goal.current, goal.target))}% complete
+                          </p>
                         </div>
                       ))
                     ) : (
@@ -426,7 +464,7 @@ export function Dashboard() {
           </TabsContent>
 
           <TabsContent value="activities" className="space-y-6">
-            <Card>
+            <Card className="border-black">
               <CardHeader>
                 <CardTitle className="text-black">All Activities</CardTitle>
                 <CardDescription>View and manage your fitness activities</CardDescription>
@@ -435,7 +473,7 @@ export function Dashboard() {
                 <div className="space-y-4">
                   {recentActivities.length > 0 ? (
                     recentActivities.map((activity) => (
-                      <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div key={activity.id} className="flex items-center justify-between p-4 border border-gray-300 rounded-lg">
                         <div className="flex items-center space-x-4">
                           {getActivityIcon(activity.type)}
                           <div>
@@ -464,7 +502,7 @@ export function Dashboard() {
           </TabsContent>
 
           <TabsContent value="goals" className="space-y-6">
-            <Card>
+            <Card className="border-black">
               <CardHeader>
                 <CardTitle className="text-black">All Goals</CardTitle>
                 <CardDescription>Track your fitness goals and progress</CardDescription>
@@ -473,7 +511,7 @@ export function Dashboard() {
                 <div className="space-y-6">
                   {goals.length > 0 ? (
                     goals.map((goal) => (
-                      <div key={goal.id} className="p-4 border rounded-lg">
+                      <div key={goal.id} className="p-4 border border-gray-300 rounded-lg">
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="font-medium text-black">{goal.name}</h3>
@@ -481,7 +519,7 @@ export function Dashboard() {
                               {goal.type.charAt(0).toUpperCase() + goal.type.slice(1)} Goal
                             </p>
                           </div>
-                          <Badge variant={goal.achieved ? "default" : "secondary"}>
+                          <Badge className={goal.achieved ? "bg-black text-white" : "bg-gray-200 text-gray-800"}>
                             {goal.achieved ? "Achieved" : "In Progress"}
                           </Badge>
                         </div>
@@ -492,9 +530,9 @@ export function Dashboard() {
                               {goal.current}/{goal.target} {goal.unit}
                             </span>
                           </div>
-                          <Progress 
-                            value={getProgressPercentage(goal.current, goal.target)} 
-                            className="h-3"
+                          <Progress
+                            value={getProgressPercentage(goal.current, goal.target)}
+                            className="h-3 bg-gray-300 [&::-webkit-progress-bar]:bg-gray-300 [&::-webkit-progress-value]:bg-black [&::-moz-progress-bar]:bg-black"
                           />
                           <p className="text-xs text-gray-500">
                             {Math.round(getProgressPercentage(goal.current, goal.target))}% complete
@@ -511,7 +549,7 @@ export function Dashboard() {
           </TabsContent>
 
           <TabsContent value="history" className="space-y-6">
-            <Card>
+            <Card className="border-black">
               <CardHeader>
                 <CardTitle className="text-black">Activity History</CardTitle>
                 <CardDescription>View your complete fitness history</CardDescription>
@@ -520,7 +558,7 @@ export function Dashboard() {
                 <div className="space-y-4">
                   {recentActivities.length > 0 ? (
                     recentActivities.map((activity) => (
-                      <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div key={activity.id} className="flex items-center justify-between p-4 border border-gray-300 rounded-lg">
                         <div className="flex items-center space-x-4">
                           {getActivityIcon(activity.type)}
                           <div>
@@ -545,4 +583,4 @@ export function Dashboard() {
       </div>
     </div>
   );
-} 
+}

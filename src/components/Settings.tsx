@@ -6,21 +6,22 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Bell, 
-  Shield, 
-  Palette, 
-  Database, 
-  User, 
-  LogOut, 
+import {
+  Bell,
+  Shield,
+  Palette,
+  Database,
+  User,
+  LogOut,
   Save,
   Loader2,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  ArrowLeft // Added ArrowLeft for back button
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { db } from '@/lib/firebase'; // Assuming db is already configured here
 
 interface UserSettings {
   notifications: {
@@ -98,17 +99,21 @@ export function Settings() {
 
   // Load settings from Firestore
   const loadSettings = async () => {
-    if (!currentUser?.uid) return;
+    if (!currentUser?.uid) {
+      setIsLoading(false); // Stop loading if no user is logged in
+      return;
+    }
 
     setIsLoading(true);
     try {
       const settingsDocRef = doc(db, 'userSettings', currentUser.uid);
       const settingsDoc = await getDoc(settingsDocRef);
-      
+
       if (settingsDoc.exists()) {
         const data = settingsDoc.data();
         setSettings({
           ...data,
+          // Convert Firestore Timestamps back to Date objects
           createdAt: data.createdAt?.toDate?.() || new Date(),
           updatedAt: data.updatedAt?.toDate?.() || new Date()
         } as UserSettings);
@@ -147,7 +152,12 @@ export function Settings() {
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        await setDoc(settingsDocRef, defaultSettings);
+        // Save default settings to Firestore
+        await setDoc(settingsDocRef, {
+          ...defaultSettings,
+          createdAt: Timestamp.fromDate(defaultSettings.createdAt),
+          updatedAt: Timestamp.fromDate(defaultSettings.updatedAt)
+        });
         setSettings(defaultSettings);
       }
     } catch (error) {
@@ -172,13 +182,20 @@ export function Settings() {
       const settingsDocRef = doc(db, 'userSettings', currentUser.uid);
       const updatedSettings = {
         ...settings,
-        updatedAt: new Date()
+        updatedAt: new Date() // Update timestamp on save
       };
-      
-      await updateDoc(settingsDocRef, updatedSettings);
-      setSettings(updatedSettings);
+
+      // Convert Date objects to Firestore Timestamps before saving
+      const dataToSave = {
+        ...updatedSettings,
+        createdAt: Timestamp.fromDate(updatedSettings.createdAt),
+        updatedAt: Timestamp.fromDate(updatedSettings.updatedAt),
+      };
+
+      await updateDoc(settingsDocRef, dataToSave);
+      setSettings(updatedSettings); // Update local state with the saved data
       setShowSuccess(true);
-      
+
       // Hide success message after 3 seconds
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
@@ -190,6 +207,7 @@ export function Settings() {
     }
   };
 
+  // Handlers for nested state updates
   const handleNotificationChange = (key: keyof UserSettings['notifications'], value: boolean) => {
     setSettings(prev => ({
       ...prev,
@@ -242,16 +260,19 @@ export function Settings() {
 
   const handleLogout = async () => {
     try {
-      // Logout logic would be here
+      // Assuming useAuth provides a logout function or integrate Firebase auth.signOut() here
       console.log('Logout clicked');
+      // Example: await auth.signOut();
+      // navigate('/login'); // Redirect to login page after logout
     } catch (error) {
       console.error('Logout error:', error);
+      // Optionally show an error message
     }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center font-inter">
         <div className="flex items-center space-x-2">
           <Loader2 className="w-6 h-6 animate-spin text-black" />
           <span className="text-black">Loading settings...</span>
@@ -261,27 +282,28 @@ export function Settings() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white font-inter">
       {/* Header */}
       <div className="bg-black text-white">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold">BiFyT</h1>
-              <Badge variant="secondary" className="bg-white text-black">
+              <Badge variant="secondary" className="bg-white text-black rounded-md shadow-sm">
                 Settings
               </Badge>
             </div>
             <div className="flex items-center space-x-4">
-              <Button asChild variant="outline" className="text-white border-white hover:bg-white hover:text-black">
+              <Button asChild variant="outline" className="bg-black text-white border-white hover:bg-white hover:text-black rounded-md shadow-sm">
                 <Link to="/dashboard">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Dashboard
                 </Link>
               </Button>
-              <Button 
+              <Button
                 onClick={saveSettings}
                 disabled={isSaving}
-                className="bg-white text-black hover:bg-gray-100"
+                className="bg-white text-black hover:bg-gray-100 rounded-md shadow-sm transition-colors"
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -298,334 +320,346 @@ export function Settings() {
       <div className="container mx-auto px-4 py-8">
         {/* Success/Error Messages */}
         {showSuccess && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2 shadow-sm">
             <CheckCircle className="w-5 h-5 text-green-600" />
             <span className="text-green-800">Settings saved successfully!</span>
           </div>
         )}
 
         {showError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2 shadow-sm">
             <AlertTriangle className="w-5 h-5 text-red-600" />
             <span className="text-red-800">Error saving settings. Please try again.</span>
           </div>
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Notifications */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-black">
-                <Bell className="w-5 h-5" />
+          {/* Notifications Card */}
+          <Card className="border-black rounded-lg shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2 text-black text-xl">
+                <Bell className="w-6 h-6" />
                 <span>Notifications</span>
               </CardTitle>
-              <CardDescription>Manage your notification preferences</CardDescription>
+              <CardDescription className="text-gray-600">Manage your notification preferences</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="space-y-6"> {/* Increased spacing */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Email Notifications</Label>
-                  <p className="text-xs text-gray-600">Receive updates via email</p>
+                  <Label className="text-sm font-semibold text-black">Email Notifications</Label>
+                  <p className="text-xs text-gray-700">Receive updates and alerts via email</p>
                 </div>
                 <Switch
                   checked={settings.notifications.email}
                   onCheckedChange={(checked) => handleNotificationChange('email', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300" // Styled switch
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Push Notifications</Label>
-                  <p className="text-xs text-gray-600">Receive push notifications</p>
+                  <Label className="text-sm font-semibold text-black">Push Notifications</Label>
+                  <p className="text-xs text-gray-700">Get instant alerts on your device</p>
                 </div>
                 <Switch
                   checked={settings.notifications.push}
                   onCheckedChange={(checked) => handleNotificationChange('push', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Activity Reminders</Label>
-                  <p className="text-xs text-gray-600">Get reminded to log activities</p>
+                  <Label className="text-sm font-semibold text-black">Activity Reminders</Label>
+                  <p className="text-xs text-gray-700">Get reminded to log your activities</p>
                 </div>
                 <Switch
                   checked={settings.notifications.reminders}
                   onCheckedChange={(checked) => handleNotificationChange('reminders', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Achievement Alerts</Label>
-                  <p className="text-xs text-gray-600">Celebrate your milestones</p>
+                  <Label className="text-sm font-semibold text-black">Achievement Alerts</Label>
+                  <p className="text-xs text-gray-700">Celebrate your fitness milestones</p>
                 </div>
                 <Switch
                   checked={settings.notifications.achievements}
                   onCheckedChange={(checked) => handleNotificationChange('achievements', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between"> {/* No bottom border for last item */}
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Weekly Reports</Label>
-                  <p className="text-xs text-gray-600">Receive weekly progress summaries</p>
+                  <Label className="text-sm font-semibold text-black">Weekly Reports</Label>
+                  <p className="text-xs text-gray-700">Receive weekly progress summaries</p>
                 </div>
                 <Switch
                   checked={settings.notifications.weeklyReports}
                   onCheckedChange={(checked) => handleNotificationChange('weeklyReports', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Privacy */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-black">
-                <Shield className="w-5 h-5" />
+          {/* Privacy Card */}
+          <Card className="border-black rounded-lg shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2 text-black text-xl">
+                <Shield className="w-6 h-6" />
                 <span>Privacy</span>
               </CardTitle>
-              <CardDescription>Control your privacy settings</CardDescription>
+              <CardDescription className="text-gray-600">Control your privacy settings</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Profile Visibility</Label>
+            <CardContent className="space-y-6"> {/* Increased spacing */}
+              <div className="space-y-2 pb-3 border-b border-gray-200">
+                <Label className="text-sm font-semibold text-black">Profile Visibility</Label>
                 <Select
                   value={settings.privacy.profileVisibility}
-                  onValueChange={(value) => handlePrivacyChange('profileVisibility', value)}
+                  onValueChange={(value) => handlePrivacyChange('profileVisibility', value as UserSettings['privacy']['profileVisibility'])}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="public">Public</SelectItem>
-                    <SelectItem value="friends">Friends Only</SelectItem>
-                    <SelectItem value="private">Private</SelectItem>
+                  <SelectContent className="bg-white text-black border border-gray-300 rounded-md shadow-lg">
+                    <SelectItem value="public" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Public</SelectItem>
+                    <SelectItem value="friends" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Friends Only</SelectItem>
+                    <SelectItem value="private" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Private</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Share Activities</Label>
-                  <p className="text-xs text-gray-600">Allow others to see your activities</p>
+                  <Label className="text-sm font-semibold text-black">Share Activities</Label>
+                  <p className="text-xs text-gray-700">Allow others to see your logged activities</p>
                 </div>
                 <Switch
                   checked={settings.privacy.activitySharing}
                   onCheckedChange={(checked) => handlePrivacyChange('activitySharing', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Share Goals</Label>
-                  <p className="text-xs text-gray-600">Allow others to see your goals</p>
+                  <Label className="text-sm font-semibold text-black">Share Goals</Label>
+                  <p className="text-xs text-gray-700">Allow others to see your fitness goals</p>
                 </div>
                 <Switch
                   checked={settings.privacy.goalSharing}
                   onCheckedChange={(checked) => handlePrivacyChange('goalSharing', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Location Sharing</Label>
-                  <p className="text-xs text-gray-600">Share your location with activities</p>
+                  <Label className="text-sm font-semibold text-black">Location Sharing</Label>
+                  <p className="text-xs text-gray-700">Share your location with activities</p>
                 </div>
                 <Switch
                   checked={settings.privacy.locationSharing}
                   onCheckedChange={(checked) => handlePrivacyChange('locationSharing', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Appearance */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-black">
-                <Palette className="w-5 h-5" />
+          {/* Appearance Card */}
+          <Card className="border-black rounded-lg shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2 text-black text-xl">
+                <Palette className="w-6 h-6" />
                 <span>Appearance</span>
               </CardTitle>
-              <CardDescription>Customize your app appearance</CardDescription>
+              <CardDescription className="text-gray-600">Customize your app appearance</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Theme</Label>
+            <CardContent className="space-y-6"> {/* Increased spacing */}
+              <div className="space-y-2 pb-3 border-b border-gray-200">
+                <Label className="text-sm font-semibold text-black">Theme</Label>
                 <Select
                   value={settings.appearance.theme}
-                  onValueChange={(value) => handleAppearanceChange('theme', value)}
+                  onValueChange={(value) => handleAppearanceChange('theme', value as UserSettings['appearance']['theme'])}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="auto">Auto</SelectItem>
+                  <SelectContent className="bg-white text-black border border-gray-300 rounded-md shadow-lg">
+                    <SelectItem value="light" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Light</SelectItem>
+                    <SelectItem value="dark" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Dark</SelectItem>
+                    <SelectItem value="auto" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Auto (System Default)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Units</Label>
+              <div className="space-y-2 pb-3 border-b border-gray-200">
+                <Label className="text-sm font-semibold text-black">Units</Label>
                 <Select
                   value={settings.appearance.units}
-                  onValueChange={(value) => handleAppearanceChange('units', value)}
+                  onValueChange={(value) => handleAppearanceChange('units', value as UserSettings['appearance']['units'])}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="metric">Metric (kg, km)</SelectItem>
-                    <SelectItem value="imperial">Imperial (lbs, mi)</SelectItem>
+                  <SelectContent className="bg-white text-black border border-gray-300 rounded-md shadow-lg">
+                    <SelectItem value="metric" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Metric (kg, km)</SelectItem>
+                    <SelectItem value="imperial" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Imperial (lbs, mi)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Language</Label>
+                <Label className="text-sm font-semibold text-black">Language</Label>
                 <Select
                   value={settings.appearance.language}
                   onValueChange={(value) => handleAppearanceChange('language', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="es">Spanish</SelectItem>
-                    <SelectItem value="fr">French</SelectItem>
-                    <SelectItem value="de">German</SelectItem>
+                  <SelectContent className="bg-white text-black border border-gray-300 rounded-md shadow-lg">
+                    <SelectItem value="en" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">English</SelectItem>
+                    <SelectItem value="es" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Spanish</SelectItem>
+                    <SelectItem value="fr" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">French</SelectItem>
+                    <SelectItem value="de" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">German</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardContent>
           </Card>
 
-          {/* Data & Sync */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-black">
-                <Database className="w-5 h-5" />
+          {/* Data & Sync Card */}
+          <Card className="border-black rounded-lg shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2 text-black text-xl">
+                <Database className="w-6 h-6" />
                 <span>Data & Sync</span>
               </CardTitle>
-              <CardDescription>Manage your data and synchronization</CardDescription>
+              <CardDescription className="text-gray-600">Manage your data and synchronization</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="space-y-6"> {/* Increased spacing */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Auto Sync</Label>
-                  <p className="text-xs text-gray-600">Automatically sync data</p>
+                  <Label className="text-sm font-semibold text-black">Auto Sync</Label>
+                  <p className="text-xs text-gray-700">Automatically synchronize your data across devices</p>
                 </div>
                 <Switch
                   checked={settings.data.autoSync}
                   onCheckedChange={(checked) => handleDataChange('autoSync', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Backup Frequency</Label>
+              <div className="space-y-2 pb-3 border-b border-gray-200">
+                <Label className="text-sm font-semibold text-black">Backup Frequency</Label>
                 <Select
                   value={settings.data.backupFrequency}
-                  onValueChange={(value) => handleDataChange('backupFrequency', value)}
+                  onValueChange={(value) => handleDataChange('backupFrequency', value as UserSettings['data']['backupFrequency'])}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectContent className="bg-white text-black border border-gray-300 rounded-md shadow-lg">
+                    <SelectItem value="daily" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Daily</SelectItem>
+                    <SelectItem value="weekly" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Weekly</SelectItem>
+                    <SelectItem value="monthly" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Data Retention</Label>
+              <div className="space-y-2 pb-3 border-b border-gray-200">
+                <Label className="text-sm font-semibold text-black">Data Retention</Label>
                 <Select
                   value={settings.data.dataRetention}
-                  onValueChange={(value) => handleDataChange('dataRetention', value)}
+                  onValueChange={(value) => handleDataChange('dataRetention', value as UserSettings['data']['dataRetention'])}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30days">30 Days</SelectItem>
-                    <SelectItem value="90days">90 Days</SelectItem>
-                    <SelectItem value="1year">1 Year</SelectItem>
-                    <SelectItem value="forever">Forever</SelectItem>
+                  <SelectContent className="bg-white text-black border border-gray-300 rounded-md shadow-lg">
+                    <SelectItem value="30days" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">30 Days</SelectItem>
+                    <SelectItem value="90days" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">90 Days</SelectItem>
+                    <SelectItem value="1year" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">1 Year</SelectItem>
+                    <SelectItem value="forever" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">Forever</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Export Format</Label>
+                <Label className="text-sm font-semibold text-black">Export Format</Label>
                 <Select
                   value={settings.data.exportFormat}
-                  onValueChange={(value) => handleDataChange('exportFormat', value)}
+                  onValueChange={(value) => handleDataChange('exportFormat', value as UserSettings['data']['exportFormat'])}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="json">JSON</SelectItem>
-                    <SelectItem value="csv">CSV</SelectItem>
+                  <SelectContent className="bg-white text-black border border-gray-300 rounded-md shadow-lg">
+                    <SelectItem value="json" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">JSON</SelectItem>
+                    <SelectItem value="csv" className="hover:bg-gray-100 focus:bg-gray-100 rounded-sm">CSV</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardContent>
           </Card>
 
-          {/* Account */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-black">
-                <User className="w-5 h-5" />
+          {/* Account Card */}
+          <Card className="border-black rounded-lg shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2 text-black text-xl">
+                <User className="w-6 h-6" />
                 <span>Account</span>
               </CardTitle>
-              <CardDescription>Manage your account settings</CardDescription>
+              <CardDescription className="text-gray-600">Manage your account settings</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="space-y-6"> {/* Increased spacing */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Email Notifications</Label>
-                  <p className="text-xs text-gray-600">Receive account-related emails</p>
+                  <Label className="text-sm font-semibold text-black">Email Notifications</Label>
+                  <p className="text-xs text-gray-700">Receive important account-related emails</p>
                 </div>
                 <Switch
                   checked={settings.account.emailNotifications}
                   onCheckedChange={(checked) => handleAccountChange('emailNotifications', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Marketing Emails</Label>
-                  <p className="text-xs text-gray-600">Receive promotional content</p>
+                  <Label className="text-sm font-semibold text-black">Marketing Emails</Label>
+                  <p className="text-xs text-gray-700">Receive promotional content and offers</p>
                 </div>
                 <Switch
                   checked={settings.account.marketingEmails}
                   onCheckedChange={(checked) => handleAccountChange('marketingEmails', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Two-Factor Authentication</Label>
-                  <p className="text-xs text-gray-600">Add extra security to your account</p>
+                  <Label className="text-sm font-semibold text-black">Two-Factor Authentication</Label>
+                  <p className="text-xs text-gray-700">Add an extra layer of security to your account</p>
                 </div>
                 <Switch
                   checked={settings.account.twoFactorAuth}
                   onCheckedChange={(checked) => handleAccountChange('twoFactorAuth', checked)}
+                  className="data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-300"
                 />
               </div>
 
-              <div className="pt-4 border-t">
-                <Button 
+              <div className="pt-6 border-t border-gray-200"> {/* Separator for logout */}
+                <Button
                   onClick={handleLogout}
                   variant="outline"
-                  className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                  className="w-full text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700 rounded-md shadow-sm transition-colors"
                 >
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout
@@ -637,4 +671,4 @@ export function Settings() {
       </div>
     </div>
   );
-} 
+}

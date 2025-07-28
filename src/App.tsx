@@ -10,6 +10,7 @@ import { WorkoutManagement } from '@/components/WorkoutManagement';
 import { UserProfile } from '@/components/UserProfile';
 import { Settings } from '@/components/Settings';
 import { AdvancedAnalytics } from '@/components/AdvancedAnalytics';
+import { GoalManagement } from '@/components/GoalManagement';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -67,6 +68,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AdvancedAnalytics />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/goals" 
+              element={
+                <ProtectedRoute>
+                  <GoalManagement />
                 </ProtectedRoute>
               } 
             />

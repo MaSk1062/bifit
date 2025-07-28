@@ -1,608 +1,684 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Dumbbell, 
-  Plus, 
-  Minus,
-  Clock,
+import {
   Target,
-  ArrowLeft,
-  Save,
+  Plus,
   Calendar,
+  Clock,
+  Save,
+  ArrowLeft,
+  Loader2,
+  CheckCircle,
+  AlertTriangle,
+  Edit,
   Trash2,
-  Copy
+  X,
+  Dumbbell,
+  Scale
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { addWorkout, updateWorkout, deleteWorkout } from '@/lib/firebase';
+import type { Workout, WorkoutExercise } from '@/lib/firebase';
+import { Timestamp } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-// Exercise database with common exercises
 const exerciseDatabase = [
-  // Cardio
-  { category: 'Cardio', exercises: [
-    { id: 'running', name: 'Running', type: 'cardio', defaultSets: 1, defaultReps: '30 min' },
-    { id: 'cycling', name: 'Cycling', type: 'cardio', defaultSets: 1, defaultReps: '30 min' },
-    { id: 'swimming', name: 'Swimming', type: 'cardio', defaultSets: 1, defaultReps: '30 min' },
-    { id: 'rowing', name: 'Rowing', type: 'cardio', defaultSets: 1, defaultReps: '20 min' },
-  ]},
-  // Upper Body
-  { category: 'Upper Body', exercises: [
-    { id: 'pushups', name: 'Push-ups', type: 'strength', defaultSets: 3, defaultReps: '10 reps' },
-    { id: 'pullups', name: 'Pull-ups', type: 'strength', defaultSets: 3, defaultReps: '8 reps' },
-    { id: 'bench-press', name: 'Bench Press', type: 'strength', defaultSets: 3, defaultReps: '8 reps' },
-    { id: 'overhead-press', name: 'Overhead Press', type: 'strength', defaultSets: 3, defaultReps: '8 reps' },
-    { id: 'dumbbell-rows', name: 'Dumbbell Rows', type: 'strength', defaultSets: 3, defaultReps: '10 reps' },
-  ]},
-  // Lower Body
-  { category: 'Lower Body', exercises: [
-    { id: 'squats', name: 'Squats', type: 'strength', defaultSets: 3, defaultReps: '12 reps' },
-    { id: 'deadlifts', name: 'Deadlifts', type: 'strength', defaultSets: 3, defaultReps: '8 reps' },
-    { id: 'lunges', name: 'Lunges', type: 'strength', defaultSets: 3, defaultReps: '10 reps' },
-    { id: 'leg-press', name: 'Leg Press', type: 'strength', defaultSets: 3, defaultReps: '12 reps' },
-    { id: 'calf-raises', name: 'Calf Raises', type: 'strength', defaultSets: 3, defaultReps: '15 reps' },
-  ]},
-  // Core
-  { category: 'Core', exercises: [
-    { id: 'planks', name: 'Planks', type: 'strength', defaultSets: 3, defaultReps: '30 sec' },
-    { id: 'crunches', name: 'Crunches', type: 'strength', defaultSets: 3, defaultReps: '15 reps' },
-    { id: 'russian-twists', name: 'Russian Twists', type: 'strength', defaultSets: 3, defaultReps: '20 reps' },
-    { id: 'leg-raises', name: 'Leg Raises', type: 'strength', defaultSets: 3, defaultReps: '12 reps' },
-  ]},
+  { name: 'Push-ups', category: 'Bodyweight' },
+  { name: 'Pull-ups', category: 'Bodyweight' },
+  { name: 'Squats', category: 'Bodyweight' },
+  { name: 'Lunges', category: 'Bodyweight' },
+  { name: 'Plank', category: 'Bodyweight' },
+  { name: 'Burpees', category: 'Bodyweight' },
+  { name: 'Bench Press', category: 'Strength' },
+  { name: 'Deadlift', category: 'Strength' },
+  { name: 'Squat', category: 'Strength' },
+  { name: 'Overhead Press', category: 'Strength' },
+  { name: 'Barbell Row', category: 'Strength' },
+  { name: 'Bicep Curls', category: 'Strength' },
+  { name: 'Tricep Dips', category: 'Strength' },
+  { name: 'Running', category: 'Cardio' },
+  { name: 'Cycling', category: 'Cardio' },
+  { name: 'Swimming', category: 'Cardio' },
+  { name: 'Jump Rope', category: 'Cardio' }
 ];
-
-// Workout templates
-const workoutTemplates = [
-  {
-    id: 'full-body',
-    name: 'Full Body Workout',
-    description: 'Complete full body workout for all muscle groups',
-    exercises: [
-      { exerciseId: 'squats', sets: 3, reps: '12 reps', weight: 0, rest: 60 },
-      { exerciseId: 'pushups', sets: 3, reps: '10 reps', weight: 0, rest: 60 },
-      { exerciseId: 'dumbbell-rows', sets: 3, reps: '10 reps', weight: 0, rest: 60 },
-      { exerciseId: 'planks', sets: 3, reps: '30 sec', weight: 0, rest: 60 },
-    ]
-  },
-  {
-    id: 'upper-body',
-    name: 'Upper Body Focus',
-    description: 'Target chest, back, shoulders, and arms',
-    exercises: [
-      { exerciseId: 'bench-press', sets: 3, reps: '8 reps', weight: 0, rest: 90 },
-      { exerciseId: 'pullups', sets: 3, reps: '8 reps', weight: 0, rest: 90 },
-      { exerciseId: 'overhead-press', sets: 3, reps: '8 reps', weight: 0, rest: 90 },
-      { exerciseId: 'dumbbell-rows', sets: 3, reps: '10 reps', weight: 0, rest: 60 },
-    ]
-  },
-  {
-    id: 'cardio',
-    name: 'Cardio Session',
-    description: 'High-intensity cardio workout',
-    exercises: [
-      { exerciseId: 'running', sets: 1, reps: '30 min', weight: 0, rest: 0 },
-      { exerciseId: 'cycling', sets: 1, reps: '20 min', weight: 0, rest: 0 },
-    ]
-  }
-];
-
-interface Exercise {
-  exerciseId: string;
-  sets: number;
-  reps: string;
-  weight: number;
-  rest: number;
-  notes?: string;
-}
-
-interface Workout {
-  id: string;
-  name: string;
-  description: string;
-  date: string;
-  duration: number;
-  exercises: Exercise[];
-  notes: string;
-}
 
 export function WorkoutManagement() {
-  const navigate = useNavigate();
-  const [workouts, setWorkouts] = useState<Workout[]>([]);
-  const [currentWorkout, setCurrentWorkout] = useState<Workout>({
-    id: '',
+  const { currentUser } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isAddingWorkout, setIsAddingWorkout] = useState(false);
+  const [editingWorkout, setEditingWorkout] = useState<string | null>(null);
+  const [workouts, setWorkouts] = useState<(Workout & { id: string })[]>([]);
+
+  const [formData, setFormData] = useState({
     name: '',
-    description: '',
     date: new Date().toISOString().split('T')[0],
-    duration: 0,
-    exercises: [],
+    duration: '',
     notes: ''
   });
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  const [showExerciseModal, setShowExerciseModal] = useState(false);
 
-  const getExerciseName = (exerciseId: string) => {
-    for (const category of exerciseDatabase) {
-      const exercise = category.exercises.find(e => e.id === exerciseId);
-      if (exercise) return exercise.name;
+  const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
+  const [currentExercise, setCurrentExercise] = useState<WorkoutExercise>({
+    name: '',
+    sets: 1,
+    reps: 10,
+    weight: 0,
+    duration: 0,
+    distance: 0,
+    restTime: 60,
+    notes: ''
+  });
+
+  // Load workouts from Firestore
+  const loadWorkouts = async () => {
+    if (!currentUser?.uid) {
+      setIsLoading(false);
+      return;
     }
-    return exerciseId;
+
+    setIsLoading(true);
+    try {
+      const workoutsRef = collection(db, 'workouts');
+      const workoutsQuery = query(
+        workoutsRef,
+        where('userId', '==', currentUser.uid),
+        orderBy('date', 'desc')
+      );
+      const workoutsSnapshot = await getDocs(workoutsQuery);
+
+      const workoutsData: (Workout & { id: string })[] = [];
+      workoutsSnapshot.forEach(doc => {
+        const data = doc.data();
+        workoutsData.push({
+          id: doc.id,
+          ...data,
+          date: data.date?.toDate?.() || new Date(),
+          exercises: data.exercises || [],
+        } as Workout & { id: string });
+      });
+      setWorkouts(workoutsData);
+    } catch (error) {
+      console.error('Error loading workouts:', error);
+      setErrorMessage('Failed to load workouts');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 3000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const getExerciseCategory = (exerciseId: string) => {
-    for (const category of exerciseDatabase) {
-      const exercise = category.exercises.find(e => e.id === exerciseId);
-      if (exercise) return category.category;
-    }
-    return 'Other';
+  useEffect(() => {
+    loadWorkouts();
+  }, [currentUser?.uid]);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const addExercise = (exerciseId: string) => {
-    const exercise = exerciseDatabase
-      .flatMap(cat => cat.exercises)
-      .find(e => e.id === exerciseId);
-    
-    if (exercise) {
-      const newExercise: Exercise = {
-        exerciseId,
-        sets: exercise.defaultSets,
-        reps: exercise.defaultReps,
-        weight: 0,
-        rest: 60
-      };
-      
-      setCurrentWorkout(prev => ({
-        ...prev,
-        exercises: [...prev.exercises, newExercise]
-      }));
+  const handleExerciseChange = (field: keyof WorkoutExercise, value: string | number) => {
+    setCurrentExercise(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const addExercise = () => {
+    if (!currentExercise.name) {
+      setErrorMessage('Please enter an exercise name');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 3000);
+      return;
     }
-    setShowExerciseModal(false);
+
+    setExercises(prev => [...prev, { ...currentExercise }]);
+    setCurrentExercise({
+      name: '',
+      sets: 1,
+      reps: 10,
+      weight: 0,
+      duration: 0,
+      distance: 0,
+      restTime: 60,
+      notes: ''
+    });
   };
 
   const removeExercise = (index: number) => {
-    setCurrentWorkout(prev => ({
-      ...prev,
-      exercises: prev.exercises.filter((_, i) => i !== index)
-    }));
+    setExercises(prev => prev.filter((_, i) => i !== index));
   };
 
-  const updateExercise = (index: number, field: keyof Exercise, value: string | number) => {
-    setCurrentWorkout(prev => ({
-      ...prev,
-      exercises: prev.exercises.map((exercise, i) => 
-        i === index ? { ...exercise, [field]: value } : exercise
-      )
-    }));
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      date: new Date().toISOString().split('T')[0],
+      duration: '',
+      notes: ''
+    });
+    setExercises([]);
+    setCurrentExercise({
+      name: '',
+      sets: 1,
+      reps: 10,
+      weight: 0,
+      duration: 0,
+      distance: 0,
+      restTime: 60,
+      notes: ''
+    });
+    setIsAddingWorkout(false);
+    setEditingWorkout(null);
   };
 
-  const loadTemplate = (templateId: string) => {
-    const template = workoutTemplates.find(t => t.id === templateId);
-    if (template) {
-      setCurrentWorkout(prev => ({
-        ...prev,
-        name: template.name,
-        description: template.description,
-        exercises: template.exercises.map(ex => ({ ...ex, notes: '' }))
-      }));
-      setSelectedTemplate(templateId);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.name || !formData.duration || exercises.length === 0) {
+      setErrorMessage('Please fill in all required fields and add at least one exercise');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 3000);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setShowError(false);
+
+    try {
+      const workoutData = {
+        name: formData.name,
+        date: Timestamp.fromDate(new Date(formData.date)),
+        duration: parseFloat(formData.duration),
+        exercises: exercises,
+        notes: formData.notes || undefined,
+      };
+
+      if (editingWorkout) {
+        await updateWorkout(editingWorkout, workoutData);
+      } else {
+        await addWorkout(workoutData);
+      }
+
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        resetForm();
+        loadWorkouts(); // Reload workouts
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error saving workout:', error);
+      setErrorMessage('Failed to save workout. Please try again.');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 3000);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const saveWorkout = () => {
-    if (!currentWorkout.name.trim()) return;
-    
-    const workout: Workout = {
-      ...currentWorkout,
-      id: Date.now().toString(),
-      duration: currentWorkout.exercises.reduce((total, ex) => total + (ex.sets * ex.rest), 0) / 60
-    };
-    
-    setWorkouts(prev => [workout, ...prev]);
-    setCurrentWorkout({
-      id: '',
-      name: '',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-      duration: 0,
-      exercises: [],
-      notes: ''
+  const handleEditWorkout = (workout: Workout & { id: string }) => {
+    setEditingWorkout(workout.id);
+    setFormData({
+      name: workout.name,
+      date: workout.date.toDate().toISOString().split('T')[0],
+      duration: workout.duration.toString(),
+      notes: workout.notes || ''
     });
-    setIsCreating(false);
+    setExercises([...workout.exercises]);
+    setIsAddingWorkout(true);
   };
 
-  const deleteWorkout = (workoutId: string) => {
-    setWorkouts(prev => prev.filter(w => w.id !== workoutId));
+  const handleDeleteWorkout = async (workoutId: string) => {
+    const isConfirmed = window.confirm('Are you sure you want to delete this workout?');
+
+    if (!isConfirmed) return;
+
+    try {
+      await deleteWorkout(workoutId);
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        loadWorkouts(); // Reload workouts
+      }, 2000);
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+      setErrorMessage('Failed to delete workout');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 3000);
+    }
   };
 
-  const duplicateWorkout = (workout: Workout) => {
-    setCurrentWorkout({
-      ...workout,
-      id: '',
-      name: `${workout.name} (Copy)`,
-      date: new Date().toISOString().split('T')[0]
-    });
-    setIsCreating(true);
+  const formatDate = (timestamp: Timestamp) => {
+    return timestamp.toDate().toLocaleDateString();
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center font-inter">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="w-6 h-6 animate-spin text-black" />
+          <span className="text-black">Loading workouts...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white font-inter">
       {/* Header */}
       <div className="bg-black text-white">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/dashboard')}
-                className="text-white hover:bg-white hover:text-black"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-              <h1 className="text-2xl font-bold">Workout Management</h1>
+              <h1 className="text-2xl font-bold">BiFyT</h1>
+              <Badge variant="secondary" className="bg-white text-black rounded-md shadow-sm">
+                Workout Management
+              </Badge>
             </div>
-            <Button 
-              onClick={() => setIsCreating(true)}
-              className="bg-white text-black hover:bg-gray-100"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Workout
-            </Button>
+            <div className="flex items-center space-x-4">
+              <Button asChild variant="outline" className="bg-black text-white border-white hover:bg-white hover:text-black rounded-md shadow-sm">
+                <Link to="/dashboard">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Dashboard
+                </Link>
+              </Button>
+              {!isAddingWorkout && (
+                <Button
+                  onClick={() => setIsAddingWorkout(true)}
+                  className="bg-black text-white hover:bg-gray-800 rounded-md shadow-sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Workout
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {isCreating ? (
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Workout Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Workout Details</CardTitle>
-                <CardDescription>Set up your workout session</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Workout Name *</Label>
-                    <Input
-                      id="name"
-                      value={currentWorkout.name}
-                      onChange={(e) => setCurrentWorkout(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Morning Workout"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="date">Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={currentWorkout.date}
-                      onChange={(e) => setCurrentWorkout(prev => ({ ...prev, date: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={currentWorkout.description}
-                    onChange={(e) => setCurrentWorkout(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe your workout focus..."
-                    rows={2}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+        {/* Success/Error Messages */}
+        {showSuccess && (
+          <div className="mb-6 p-4 bg-white border-black rounded-lg flex items-center space-x-2 shadow-sm">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-black">Workout saved successfully!</span>
+          </div>
+        )}
 
-            {/* Workout Templates */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Start Templates</CardTitle>
-                <CardDescription>Choose a pre-built workout template</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
-                  {workoutTemplates.map((template) => (
-                    <Card 
-                      key={template.id} 
-                      className={`cursor-pointer transition-colors ${
-                        selectedTemplate === template.id ? 'border-black bg-gray-50' : ''
-                      }`}
-                      onClick={() => loadTemplate(template.id)}
+        {showError && (
+          <div className="mb-6 p-4 bg-white border-black rounded-lg flex items-center space-x-2 shadow-sm">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+            <span className="text-black">{errorMessage}</span>
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Add/Edit Workout Form */}
+          {isAddingWorkout && (
+            <div className="lg:col-span-1">
+              <Card className="border-black rounded-lg shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-black">
+                    <span>{editingWorkout ? 'Edit Workout' : 'Add New Workout'}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetForm}
+                      className="text-black hover:bg-gray-100 rounded-md"
                     >
-                      <CardContent className="p-4">
-                        <h3 className="font-medium text-black mb-2">{template.name}</h3>
-                        <p className="text-sm text-gray-600 mb-3">{template.description}</p>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary">
-                            {template.exercises.length} exercises
-                          </Badge>
-                          <Button size="sm" variant="outline">
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">Create a new workout routine</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Workout Name */}
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-black">Workout Name *</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => handleInputChange('name', e.target.value)}
+                        placeholder="e.g., Upper Body, Leg Day, Cardio"
+                        className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black"
+                      />
+                    </div>
 
-            {/* Exercises */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Exercises</CardTitle>
-                    <CardDescription>Add exercises to your workout</CardDescription>
-                  </div>
-                  <Button onClick={() => setShowExerciseModal(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Exercise
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {currentWorkout.exercises.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Dumbbell className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No exercises added yet. Click "Add Exercise" to get started.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {currentWorkout.exercises.map((exercise, index) => (
-                      <Card key={index} className="border-gray-200">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <h3 className="font-medium text-black">
-                                {getExerciseName(exercise.exerciseId)}
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                {getExerciseCategory(exercise.exerciseId)}
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeExercise(index)}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <div className="grid gap-4 md:grid-cols-4">
-                            <div className="space-y-2">
-                              <Label className="text-xs">Sets</Label>
-                              <div className="flex items-center space-x-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => updateExercise(index, 'sets', Math.max(1, exercise.sets - 1))}
-                                >
-                                  <Minus className="w-3 h-3" />
-                                </Button>
-                                <Input
-                                  type="number"
-                                  value={exercise.sets}
-                                  onChange={(e) => updateExercise(index, 'sets', parseInt(e.target.value) || 1)}
-                                  className="w-16 text-center"
-                                  min="1"
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => updateExercise(index, 'sets', exercise.sets + 1)}
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Reps/Duration</Label>
-                              <Input
-                                value={exercise.reps}
-                                onChange={(e) => updateExercise(index, 'reps', e.target.value)}
-                                placeholder="10 reps"
-                                className="text-sm"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Weight (kg)</Label>
-                              <Input
-                                type="number"
-                                value={exercise.weight}
-                                onChange={(e) => updateExercise(index, 'weight', parseFloat(e.target.value) || 0)}
-                                placeholder="0"
-                                className="text-sm"
-                                min="0"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Rest (sec)</Label>
-                              <Input
-                                type="number"
-                                value={exercise.rest}
-                                onChange={(e) => updateExercise(index, 'rest', parseInt(e.target.value) || 0)}
-                                placeholder="60"
-                                className="text-sm"
-                                min="0"
-                              />
-                            </div>
-                          </div>
-                          <div className="mt-3">
+                    {/* Date and Duration */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="date" className="text-black">Date *</Label>
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-4 h-4 text-gray-600" />
+                          <Input
+                            id="date"
+                            type="date"
+                            value={formData.date}
+                            onChange={(e) => handleInputChange('date', e.target.value)}
+                            max={new Date().toISOString().split('T')[0]}
+                            className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="duration" className="text-black">Duration (minutes) *</Label>
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-4 h-4 text-gray-600" />
+                          <Input
+                            id="duration"
+                            type="number"
+                            value={formData.duration}
+                            onChange={(e) => handleInputChange('duration', e.target.value)}
+                            placeholder="60"
+                            min="1"
+                            step="1"
+                            className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div className="space-y-2">
+                      <Label htmlFor="notes" className="text-black">Notes</Label>
+                      <Textarea
+                        id="notes"
+                        value={formData.notes}
+                        onChange={(e) => handleInputChange('notes', e.target.value)}
+                        placeholder="Any notes about your workout..."
+                        rows={2}
+                        className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black"
+                      />
+                    </div>
+
+                    {/* Exercises Section */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-black font-semibold">Exercises *</Label>
+                        <Badge variant="outline" className="bg-white text-black border-black">{exercises.length}</Badge>
+                      </div>
+
+                      {/* Add Exercise Form */}
+                      <div className="p-6 border-2 border-gray-200 rounded-lg bg-gray-50 space-y-4">
+                        <h4 className="font-medium text-black mb-3">Add New Exercise</h4>
+                        
+                        {/* Exercise Name */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-black">Exercise Name *</Label>
+                          <Select
+                            value={currentExercise.name}
+                            onValueChange={(value) => handleExerciseChange('name', value)}
+                          >
+                            <SelectTrigger className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10">
+                              <SelectValue placeholder="Select exercise" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white text-black border border-black rounded-md shadow-lg max-h-60">
+                              {exerciseDatabase.map((exercise) => (
+                                <SelectItem key={exercise.name} value={exercise.name} className="hover:bg-black hover:text-white cursor-pointer">
+                                  <span className="flex items-center space-x-2">
+                                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{exercise.category}</span>
+                                    <span>{exercise.name}</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Sets and Reps */}
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-black">Sets *</Label>
                             <Input
-                              placeholder="Notes (optional)"
-                              value={exercise.notes || ''}
-                              onChange={(e) => updateExercise(index, 'notes', e.target.value)}
-                              className="text-sm"
+                              type="number"
+                              value={currentExercise.sets}
+                              onChange={(e) => handleExerciseChange('sets', parseInt(e.target.value) || 1)}
+                              min="1"
+                              step="1"
+                              className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10"
+                              placeholder="3"
                             />
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
-            {/* Workout Notes */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Workout Notes</CardTitle>
-                <CardDescription>Add any additional notes about your workout</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={currentWorkout.notes}
-                  onChange={(e) => setCurrentWorkout(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="How did you feel? Any achievements or challenges?"
-                  rows={3}
-                />
-              </CardContent>
-            </Card>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-black">Reps *</Label>
+                            <Input
+                              type="number"
+                              value={currentExercise.reps}
+                              onChange={(e) => handleExerciseChange('reps', parseInt(e.target.value) || 10)}
+                              min="1"
+                              step="1"
+                              className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10"
+                              placeholder="12"
+                            />
+                          </div>
+                        </div>
 
-            {/* Action Buttons */}
-            <div className="flex space-x-4">
-              <Button
-                variant="outline"
-                onClick={() => setIsCreating(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={saveWorkout}
-                disabled={!currentWorkout.name.trim()}
-                className="flex-1"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save Workout
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="max-w-6xl mx-auto space-y-6">
-            {/* Workout History */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Workout History</CardTitle>
-                <CardDescription>Your recent workout sessions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {workouts.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Dumbbell className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No workouts yet. Create your first workout to get started.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {workouts.map((workout) => (
-                      <Card key={workout.id} className="border-gray-200">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <h3 className="font-medium text-black">{workout.name}</h3>
-                              <p className="text-sm text-gray-600">{workout.description}</p>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="secondary">
-                                {workout.exercises.length} exercises
-                              </Badge>
+                        {/* Weight and Rest Time */}
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-black">Weight (kg)</Label>
+                            <Input
+                              type="number"
+                              value={currentExercise.weight}
+                              onChange={(e) => handleExerciseChange('weight', parseFloat(e.target.value) || 0)}
+                              min="0"
+                              step="0.5"
+                              className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10"
+                              placeholder="0"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-black">Rest Time (sec)</Label>
+                            <Input
+                              type="number"
+                              value={currentExercise.restTime}
+                              onChange={(e) => handleExerciseChange('restTime', parseInt(e.target.value) || 60)}
+                              min="0"
+                              step="10"
+                              className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black h-10"
+                              placeholder="60"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Exercise Notes */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-black">Notes (Optional)</Label>
+                          <Textarea
+                            value={currentExercise.notes}
+                            onChange={(e) => handleExerciseChange('notes', e.target.value)}
+                            placeholder="Any notes about this exercise..."
+                            rows={2}
+                            className="border-gray-300 focus:border-black focus:ring-black rounded-md text-black resize-none"
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          onClick={addExercise}
+                          disabled={!currentExercise.name}
+                          variant="outline"
+                          className="w-full bg-black text-white hover:bg-gray-800 rounded-md shadow-sm h-10 disabled:bg-gray-300 disabled:text-gray-500"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Exercise
+                        </Button>
+                      </div>
+
+                      {/* Exercise List */}
+                      {exercises.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-black">Added Exercises ({exercises.length})</h4>
+                          {exercises.map((exercise, index) => (
+                            <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-black transition-colors">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <Target className="w-4 h-4 text-gray-600" />
+                                  <p className="font-medium text-black">{exercise.name}</p>
+                                </div>
+                                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                  <span className="flex items-center space-x-1">
+                                    <Dumbbell className="w-3 h-3" />
+                                    <span>{exercise.sets} sets × {exercise.reps} reps</span>
+                                  </span>
+                                  {(exercise.weight || 0) > 0 && (
+                                    <span className="flex items-center space-x-1">
+                                      <Scale className="w-3 h-3" />
+                                      <span>{exercise.weight}kg</span>
+                                    </span>
+                                  )}
+                                  {(exercise.restTime || 0) > 0 && (
+                                    <span className="flex items-center space-x-1">
+                                      <Clock className="w-3 h-3" />
+                                      <span>{exercise.restTime}s rest</span>
+                                    </span>
+                                  )}
+                                </div>
+                                {exercise.notes && (
+                                  <p className="text-xs text-gray-500 mt-1 italic">"{exercise.notes}"</p>
+                                )}
+                              </div>
                               <Button
+                                type="button"
+                                variant="ghost"
                                 size="sm"
-                                variant="outline"
-                                onClick={() => duplicateWorkout(workout)}
-                              >
-                                <Copy className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => deleteWorkout(workout.id)}
-                                className="text-red-500 hover:text-red-700"
+                                onClick={() => removeExercise(index)}
+                                className="text-red-600 hover:bg-red-50 rounded-md ml-2"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Submit Button */}
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || !formData.name || !formData.duration || exercises.length === 0}
+                      className="w-full bg-black text-white hover:bg-gray-800 rounded-md shadow-md"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          {editingWorkout ? 'Update Workout' : 'Save Workout'}
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Workouts List */}
+          <div className={isAddingWorkout ? "lg:col-span-2" : "lg:col-span-3"}>
+            <Card className="border-black rounded-lg shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-black">
+                  <Dumbbell className="w-5 h-5" />
+                  <span>Your Workouts</span>
+                  <Badge variant="outline" className="bg-white text-black border-black">{workouts.length}</Badge>
+                </CardTitle>
+                <CardDescription className="text-gray-600">View and manage your workout history</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {workouts.length === 0 && !isAddingWorkout ? (
+                  <div className="text-center py-8">
+                    <Dumbbell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-black mb-2">No workouts yet</h3>
+                    <p className="text-gray-600 mb-4">Start by adding your first workout</p>
+                    <Button onClick={() => setIsAddingWorkout(true)}
+                      className="bg-black text-white hover:bg-gray-800 rounded-md shadow-sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Your First Workout
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {workouts.map((workout) => (
+                      <div key={workout.id} className="p-4 border border-black rounded-lg">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="font-medium text-black">{workout.name}</h3>
+                            <p className="text-sm text-gray-600">
+                              {formatDate(workout.date as Timestamp)} • {workout.duration} minutes
+                            </p>
                           </div>
-                          <div className="grid gap-4 md:grid-cols-3">
-                            <div className="flex items-center space-x-2">
-                              <Calendar className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">{workout.date}</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Clock className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">{workout.duration.toFixed(1)} min</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Target className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">
-                                {workout.exercises.reduce((total, ex) => total + ex.sets, 0)} total sets
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className="bg-white text-black border-black">{workout.exercises.length} exercises</Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditWorkout(workout)}
+                              className="text-black hover:bg-gray-100 rounded-md"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteWorkout(workout.id)}
+                              className="text-red-600 hover:bg-gray-100 rounded-md"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          {workout.exercises.map((exercise, index) => (
+                            <div key={index} className="flex items-center space-x-3 text-sm">
+                              <Target className="w-4 h-4 text-gray-600" />
+                              <span className="text-black">{exercise.name}</span>
+                              <span className="text-gray-600">
+                                {exercise.sets}×{exercise.reps}
+                                {(exercise.weight || 0) > 0 && ` @ ${exercise.weight}kg`}
                               </span>
                             </div>
-                          </div>
-                          {workout.notes && (
-                            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                              <p className="text-sm text-gray-600">{workout.notes}</p>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
+                          ))}
+                        </div>
+
+                        {workout.notes && (
+                          <p className="text-sm text-gray-600 mt-3">{workout.notes}</p>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
-        )}
-      </div>
-
-      {/* Exercise Selection Modal */}
-      {showExerciseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Add Exercise</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowExerciseModal(false)}
-              >
-                ×
-              </Button>
-            </div>
-            <div className="space-y-4">
-              {exerciseDatabase.map((category) => (
-                <div key={category.category}>
-                  <h3 className="font-medium text-black mb-2">{category.category}</h3>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {category.exercises.map((exercise) => (
-                      <Button
-                        key={exercise.id}
-                        variant="outline"
-                        className="justify-start h-auto p-3"
-                        onClick={() => addExercise(exercise.id)}
-                      >
-                        <div className="text-left">
-                          <div className="font-medium text-black">{exercise.name}</div>
-                          <div className="text-sm text-gray-600">
-                            {exercise.defaultSets} sets × {exercise.defaultReps}
-                          </div>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
-} 
+}
