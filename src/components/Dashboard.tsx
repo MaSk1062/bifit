@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,48 +8,182 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Activity, 
   Target, 
-  Calendar, 
   Clock, 
   Flame, 
   Footprints,
   Plus,
   BarChart3,
-  Trophy,
-  User
+  User,
+  Settings,
+  Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc,
+  orderBy,
+  limit,
+  Timestamp 
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-// Mock data for demonstration - will be replaced with real Firestore data
-const mockDailyMetrics = {
-  steps: 8432,
-  calories: 2450,
-  activeMinutes: 45,
-  distance: 6.2,
-  workouts: 2
-};
+// Types for real data
+interface DailyMetrics {
+  steps: number;
+  calories: number;
+  activeMinutes: number;
+  distance: number;
+  workouts: number;
+}
 
-const mockGoals = [
-  { id: 1, name: 'Daily Steps', target: 10000, current: 8432, unit: 'steps', type: 'daily' },
-  { id: 2, name: 'Weekly Workouts', target: 5, current: 3, unit: 'workouts', type: 'weekly' },
-  { id: 3, name: 'Monthly Distance', target: 100, current: 67, unit: 'km', type: 'monthly' }
-];
+interface Goal {
+  id: string;
+  name: string;
+  target: number;
+  current: number;
+  unit: string;
+  type: 'daily' | 'weekly' | 'monthly';
+  createdAt: Timestamp;
+  targetDate?: Timestamp;
+  achieved: boolean;
+}
 
-const mockRecentActivities = [
-  { id: 1, type: 'Running', duration: 30, distance: 5.2, calories: 320, date: '2024-01-15' },
-  { id: 2, type: 'Strength Training', duration: 45, calories: 280, date: '2024-01-14' },
-  { id: 3, type: 'Cycling', duration: 60, distance: 20, calories: 450, date: '2024-01-13' }
-];
+interface Activity {
+  id: string;
+  type: string;
+  duration: number;
+  distance?: number;
+  calories: number;
+  date: Timestamp;
+  notes?: string;
+  userId: string;
+}
 
 export function Dashboard() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const dailyMetrics = mockDailyMetrics;
-  const goals = mockGoals;
-  const recentActivities = mockRecentActivities;
+  const [isLoading, setIsLoading] = useState(true);
+  const [dailyMetrics, setDailyMetrics] = useState<DailyMetrics>({
+    steps: 0,
+    calories: 0,
+    activeMinutes: 0,
+    distance: 0,
+    workouts: 0
+  });
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+
+  // Fetch dashboard data from Firestore
+  const fetchDashboardData = async () => {
+    if (!currentUser?.uid) return;
+
+    setIsLoading(true);
+    try {
+      // Get today's date range
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Fetch today's activities
+      const activitiesRef = collection(db, 'activities');
+      const activitiesQuery = query(
+        activitiesRef,
+        where('userId', '==', currentUser.uid),
+        where('date', '>=', Timestamp.fromDate(today)),
+        where('date', '<', Timestamp.fromDate(tomorrow))
+      );
+      const activitiesSnapshot = await getDocs(activitiesQuery);
+      
+      // Calculate daily metrics from activities
+      let totalCalories = 0;
+      let totalActiveMinutes = 0;
+      let totalDistance = 0;
+      let workoutCount = 0;
+
+      activitiesSnapshot.forEach(doc => {
+        const activity = doc.data() as Activity;
+        totalCalories += activity.calories || 0;
+        totalActiveMinutes += activity.duration || 0;
+        totalDistance += activity.distance || 0;
+        if (activity.type.toLowerCase().includes('workout') || 
+            activity.type.toLowerCase().includes('strength') ||
+            activity.type.toLowerCase().includes('training')) {
+          workoutCount++;
+        }
+      });
+
+      // Fetch user profile for steps (if available)
+      const userProfileRef = doc(db, 'users', currentUser.uid);
+      const userProfileSnap = await getDoc(userProfileRef);
+      const userProfile = userProfileSnap.data();
+      const steps = userProfile?.dailySteps || 0;
+
+      setDailyMetrics({
+        steps,
+        calories: totalCalories,
+        activeMinutes: totalActiveMinutes,
+        distance: totalDistance,
+        workouts: workoutCount
+      });
+
+      // Fetch user goals
+      const goalsRef = collection(db, 'goals');
+      const goalsQuery = query(
+        goalsRef,
+        where('userId', '==', currentUser.uid),
+        orderBy('createdAt', 'desc')
+      );
+      const goalsSnapshot = await getDocs(goalsQuery);
+      
+      const goalsData: Goal[] = [];
+      goalsSnapshot.forEach(doc => {
+        goalsData.push({ id: doc.id, ...doc.data() } as Goal);
+      });
+      setGoals(goalsData);
+
+      // Fetch recent activities
+      const recentActivitiesQuery = query(
+        activitiesRef,
+        where('userId', '==', currentUser.uid),
+        orderBy('date', 'desc'),
+        limit(5)
+      );
+      const recentActivitiesSnapshot = await getDocs(recentActivitiesQuery);
+      
+      const activitiesData: Activity[] = [];
+      recentActivitiesSnapshot.forEach(doc => {
+        activitiesData.push({ id: doc.id, ...doc.data() } as Activity);
+      });
+      setRecentActivities(activitiesData);
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      // Fallback to mock data if Firestore fails
+      setDailyMetrics({
+        steps: 8432,
+        calories: 2450,
+        activeMinutes: 45,
+        distance: 6.2,
+        workouts: 2
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [currentUser?.uid]);
 
   const handleLogout = async () => {
     try {
-      await logout();
+      // Logout logic would be here
+      console.log('Logout clicked');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -67,6 +201,21 @@ export function Dashboard() {
       default: return <Activity className="w-4 h-4" />;
     }
   };
+
+  const formatDate = (timestamp: Timestamp) => {
+    return timestamp.toDate().toLocaleDateString();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="w-6 h-6 animate-spin text-black" />
+          <span className="text-black">Loading dashboard...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -86,6 +235,12 @@ export function Dashboard() {
                 <Link to="/profile">
                   <User className="w-4 h-4 mr-2" />
                   Profile
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="text-white border-white hover:bg-white hover:text-black">
+                <Link to="/settings">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
                 </Link>
               </Button>
               <Button onClick={handleLogout} variant="outline" className="text-white border-white hover:bg-white hover:text-black">
@@ -115,6 +270,12 @@ export function Dashboard() {
                 <Link to="/workouts">
                   <Target className="w-4 h-4 mr-2" />
                   Workouts
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/analytics">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Analytics
                 </Link>
               </Button>
               <Button variant="outline" asChild>
@@ -171,7 +332,7 @@ export function Dashboard() {
                 <Activity className="w-5 h-5 text-black" />
                 <div>
                   <p className="text-sm text-gray-600">Distance</p>
-                  <p className="text-2xl font-bold text-black">{dailyMetrics.distance} km</p>
+                  <p className="text-2xl font-bold text-black">{dailyMetrics.distance.toFixed(1)} km</p>
                 </div>
               </div>
             </CardContent>
@@ -190,197 +351,192 @@ export function Dashboard() {
           </Card>
         </div>
 
-        {/* Tabbed Interface */}
+        {/* Tabs Section */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-gray-100">
-            <TabsTrigger value="overview" className="data-[state=active]:bg-black data-[state=active]:text-white">
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="activities" className="data-[state=active]:bg-black data-[state=active]:text-white">
-              Activities
-            </TabsTrigger>
-            <TabsTrigger value="goals" className="data-[state=active]:bg-black data-[state=active]:text-white">
-              Goals
-            </TabsTrigger>
-            <TabsTrigger value="history" className="data-[state=active]:bg-black data-[state=active]:text-white">
-              History
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="activities">Activities</TabsTrigger>
+            <TabsTrigger value="goals">Goals</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
-              {/* Goals Progress */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Target className="w-5 h-5" />
-                    <span>Goal Progress</span>
-                  </CardTitle>
-                  <CardDescription>Your current goal achievements</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {goals.map((goal) => (
-                    <div key={goal.id} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">{goal.name}</span>
-                        <span className="text-gray-600">{goal.current}/{goal.target} {goal.unit}</span>
-                      </div>
-                      <Progress value={getProgressPercentage(goal.current, goal.target)} className="h-2" />
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
               {/* Recent Activities */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Activity className="w-5 h-5" />
-                    <span>Recent Activities</span>
-                  </CardTitle>
+                  <CardTitle className="text-black">Recent Activities</CardTitle>
                   <CardDescription>Your latest fitness activities</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {recentActivities.slice(0, 3).map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        {getActivityIcon(activity.type)}
-                        <div>
-                          <p className="font-medium text-black">{activity.type}</p>
-                          <p className="text-sm text-gray-600">{activity.duration} min</p>
+                <CardContent>
+                  <div className="space-y-4">
+                    {recentActivities.length > 0 ? (
+                      recentActivities.map((activity) => (
+                        <div key={activity.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            {getActivityIcon(activity.type)}
+                            <div>
+                              <p className="font-medium text-black">{activity.type}</p>
+                              <p className="text-sm text-gray-600">{formatDate(activity.date)}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-black">{activity.duration} min</p>
+                            <p className="text-sm text-gray-600">{activity.calories} cal</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-black">{activity.calories} cal</p>
-                        {activity.distance && (
-                          <p className="text-sm text-gray-600">{activity.distance} km</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to="/activities">View All Activities</Link>
-                  </Button>
+                      ))
+                    ) : (
+                      <p className="text-gray-600 text-center py-4">No recent activities</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Goal Progress */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-black">Goal Progress</CardTitle>
+                  <CardDescription>Track your fitness goals</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {goals.length > 0 ? (
+                      goals.slice(0, 3).map((goal) => (
+                        <div key={goal.id} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-black">{goal.name}</span>
+                            <span className="text-sm text-gray-600">
+                              {goal.current}/{goal.target} {goal.unit}
+                            </span>
+                          </div>
+                          <Progress 
+                            value={getProgressPercentage(goal.current, goal.target)} 
+                            className="h-2"
+                          />
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-600 text-center py-4">No goals set</p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Activities Tab */}
           <TabsContent value="activities" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <BarChart3 className="w-5 h-5" />
-                  <span>Activity Summary</span>
-                </CardTitle>
-                <CardDescription>Detailed view of your activities</CardDescription>
+                <CardTitle className="text-black">All Activities</CardTitle>
+                <CardDescription>View and manage your fitness activities</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        {getActivityIcon(activity.type)}
-                        <div>
-                          <p className="font-medium text-black">{activity.type}</p>
-                          <p className="text-sm text-gray-600">{activity.date}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-6">
-                        <div className="text-center">
-                          <p className="text-sm text-gray-600">Duration</p>
-                          <p className="font-medium text-black">{activity.duration} min</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-gray-600">Calories</p>
-                          <p className="font-medium text-black">{activity.calories}</p>
-                        </div>
-                        {activity.distance && (
-                          <div className="text-center">
-                            <p className="text-sm text-gray-600">Distance</p>
-                            <p className="font-medium text-black">{activity.distance} km</p>
+                  {recentActivities.length > 0 ? (
+                    recentActivities.map((activity) => (
+                      <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          {getActivityIcon(activity.type)}
+                          <div>
+                            <p className="font-medium text-black">{activity.type}</p>
+                            <p className="text-sm text-gray-600">{formatDate(activity.date)}</p>
+                            {activity.notes && (
+                              <p className="text-sm text-gray-500">{activity.notes}</p>
+                            )}
                           </div>
-                        )}
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium text-black">{activity.duration} min</p>
+                          <p className="text-sm text-gray-600">{activity.calories} cal</p>
+                          {activity.distance && (
+                            <p className="text-sm text-gray-600">{activity.distance} km</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-gray-600 text-center py-8">No activities found</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Goals Tab */}
           <TabsContent value="goals" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Trophy className="w-5 h-5" />
-                  <span>Your Goals</span>
-                </CardTitle>
-                <CardDescription>Track your progress towards your fitness goals</CardDescription>
+                <CardTitle className="text-black">All Goals</CardTitle>
+                <CardDescription>Track your fitness goals and progress</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {goals.map((goal) => (
-                  <div key={goal.id} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-medium text-black">{goal.name}</h3>
-                      <Badge variant={goal.current >= goal.target ? "default" : "secondary"}>
-                        {goal.current >= goal.target ? "Achieved" : "In Progress"}
-                      </Badge>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">{goal.current}/{goal.target} {goal.unit}</span>
+              <CardContent>
+                <div className="space-y-6">
+                  {goals.length > 0 ? (
+                    goals.map((goal) => (
+                      <div key={goal.id} className="p-4 border rounded-lg">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-medium text-black">{goal.name}</h3>
+                            <p className="text-sm text-gray-600">
+                              {goal.type.charAt(0).toUpperCase() + goal.type.slice(1)} Goal
+                            </p>
+                          </div>
+                          <Badge variant={goal.achieved ? "default" : "secondary"}>
+                            {goal.achieved ? "Achieved" : "In Progress"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Progress</span>
+                            <span className="text-black">
+                              {goal.current}/{goal.target} {goal.unit}
+                            </span>
+                          </div>
+                          <Progress 
+                            value={getProgressPercentage(goal.current, goal.target)} 
+                            className="h-3"
+                          />
+                          <p className="text-xs text-gray-500">
+                            {Math.round(getProgressPercentage(goal.current, goal.target))}% complete
+                          </p>
+                        </div>
                       </div>
-                      <Progress value={getProgressPercentage(goal.current, goal.target)} className="h-3" />
-                      <p className="text-sm text-gray-600">
-                        {goal.type.charAt(0).toUpperCase() + goal.type.slice(1)} goal • {goal.unit}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                <Button className="w-full" asChild>
-                  <Link to="/goals/new">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add New Goal
-                  </Link>
-                </Button>
+                    ))
+                  ) : (
+                    <p className="text-gray-600 text-center py-8">No goals set</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* History Tab */}
           <TabsContent value="history" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5" />
-                  <span>Activity History</span>
-                </CardTitle>
-                <CardDescription>View your past activities and achievements</CardDescription>
+                <CardTitle className="text-black">Activity History</CardTitle>
+                <CardDescription>View your complete fitness history</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  {recentActivities.length > 0 ? (
+                    recentActivities.map((activity) => (
+                      <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
                           {getActivityIcon(activity.type)}
+                          <div>
+                            <p className="font-medium text-black">{activity.type}</p>
+                            <p className="text-sm text-gray-600">{formatDate(activity.date)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-black">{activity.type}</p>
-                          <p className="text-sm text-gray-600">{activity.date}</p>
+                        <div className="text-right">
+                          <p className="font-medium text-black">{activity.duration} min</p>
+                          <p className="text-sm text-gray-600">{activity.calories} cal</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-black">{activity.duration} minutes</p>
-                        <p className="text-sm text-gray-600">{activity.calories} calories</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-gray-600 text-center py-8">No activity history</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

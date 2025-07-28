@@ -1,51 +1,33 @@
 # BiFyT - Fitness Tracking Application
 
-A modern fitness tracking application built with React, TypeScript, and Firebase.
+A comprehensive fitness tracking application built with React, TypeScript, and Firebase.
 
-## 🎯 Milestone One: Project Foundation - COMPLETED ✅
+## 🚀 Features
 
-### What's Been Implemented:
+- **User Authentication**: Secure login and registration with Firebase Auth
+- **Dashboard**: Real-time fitness metrics and progress tracking
+- **Activity Tracking**: Log and monitor various fitness activities
+- **Goal Management**: Set and track fitness goals with progress visualization
+- **Workout Management**: Create and manage detailed workout routines
+- **User Profile**: Comprehensive profile management with health metrics
+- **Settings**: Customizable app settings and preferences
+- **Advanced Analytics**: Detailed insights and performance analysis
 
-#### ✅ Project Setup & Configuration
-- [x] React + TypeScript + Vite setup
-- [x] Firebase configuration and integration
-- [x] Tailwind CSS + shadcn/ui components
-- [x] React Router setup with proper routing
-- [x] Environment configuration (.env files)
-- [x] Project structure and organization
+## 🛠️ Tech Stack
 
-#### ✅ Authentication System
-- [x] Firebase Authentication integration
-- [x] User registration and login
-- [x] Sign out functionality
-- [x] Authentication state management
-- [x] Protected routes
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI Framework**: Tailwind CSS + shadcn/ui
+- **Backend**: Firebase (Authentication, Firestore, Storage)
+- **State Management**: React Context + TanStack Query
+- **Routing**: React Router DOM
+- **Build Tool**: Vite
 
-#### ✅ UI Components & Design System
-- [x] shadcn/ui component library setup
-- [x] Custom Button component with variants
-- [x] Custom Input component with validation
-- [x] Custom Card component with header/content/footer
-- [x] Custom Label component
-- [x] Black and White Color Scheme Implementation
-  - [x] Updated CSS variables for consistent black and white theme
-  - [x] Modified all UI components to use black and white colors
-  - [x] Maintained accessibility with proper contrast ratios
-  - [x] Removed all colored elements and replaced with grayscale variations
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
-- Firebase project
-
-### Installation
+## 📦 Installation
 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd bifyt
+   cd bifit
    ```
 
 2. **Install dependencies**
@@ -54,120 +36,173 @@ A modern fitness tracking application built with React, TypeScript, and Firebase
    ```
 
 3. **Set up Firebase**
-   - Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
-   - Enable Authentication (Email/Password)
-   - Enable Firestore Database
-   - Copy your Firebase configuration
+   - Create a Firebase project at [firebase.google.com](https://firebase.google.com)
+   - Enable Authentication, Firestore, and Storage
+   - Copy your Firebase config to `src/lib/firebase.ts`
 
-4. **Configure environment variables**
-   ```bash
-   cp env.example .env
-   ```
-   
-   Edit `.env` and add your Firebase configuration:
+4. **Environment variables**
+   Create a `.env` file in the root directory:
    ```env
-   VITE_FIREBASE_API_KEY=your_api_key_here
-   VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
+   VITE_FIREBASE_API_KEY=your-api-key
+   VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project-id
+   VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+   VITE_FIREBASE_APP_ID=your-app-id
    ```
 
-5. **Start the development server**
+5. **Start development server**
    ```bash
    npm run dev
    ```
 
-6. **Open your browser**
-   Navigate to `http://localhost:5173`
+## 🚀 Deployment
+
+### Firebase Deployment
+
+1. **Install Firebase CLI**
+   ```bash
+   npm install -g firebase-tools
+   ```
+
+2. **Login to Firebase**
+   ```bash
+   firebase login
+   ```
+
+3. **Initialize Firebase** (if not already done)
+   ```bash
+   firebase init
+   ```
+
+4. **Update project configuration**
+   - Update `.firebaserc` with your Firebase project ID
+   - Update `src/lib/firebase.ts` with your Firebase config
+
+5. **Deploy to Firebase**
+   ```bash
+   npm run deploy
+   ```
+
+### Available Deployment Scripts
+
+- `npm run deploy` - Build and deploy everything
+- `npm run deploy:hosting` - Deploy only hosting
+- `npm run deploy:firestore` - Deploy only Firestore
+- `npm run deploy:storage` - Deploy only Storage
+- `npm run deploy:rules` - Deploy security rules
 
 ## 📁 Project Structure
 
 ```
-src/
-├── components/
-│   ├── auth/
-│   │   ├── Login.tsx
-│   │   └── Signup.tsx
-│   ├── ui/
-│   │   ├── button.tsx
-│   │   ├── card.tsx
-│   │   ├── input.tsx
-│   │   └── label.tsx
-│   ├── Dashboard.tsx
-│   └── ProtectedRoute.tsx
-├── contexts/
-│   └── AuthContext.tsx
-├── lib/
-│   ├── firebase.ts
-│   └── utils.ts
-├── App.tsx
-├── main.tsx
-└── index.css
+bifit/
+├── src/
+│   ├── components/
+│   │   ├── auth/           # Authentication components
+│   │   ├── ui/             # Reusable UI components
+│   │   └── ...             # Feature-specific components
+│   ├── contexts/           # React contexts
+│   ├── lib/                # Firebase configuration
+│   └── App.tsx             # Main application component
+├── docs/                   # Documentation
+├── firebase.json           # Firebase configuration
+├── firestore.rules         # Firestore security rules
+├── firestore.indexes.json  # Firestore indexes
+├── storage.rules           # Storage security rules
+└── firebase-deploy.md      # Deployment guide
 ```
 
-## 🛠️ Tech Stack
+## 🔧 Available Scripts
 
-- **Frontend**: React 18, TypeScript, Vite
-- **Styling**: Tailwind CSS, shadcn/ui
-- **Authentication**: Firebase Authentication
-- **Database**: Firebase Firestore
-- **State Management**: React Context + TanStack Query
-- **Routing**: React Router DOM
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+- `npm run deploy` - Deploy to Firebase
 
-## 🎨 Design System
+## 🔒 Security
 
-The application uses a consistent black and white color scheme with:
-- High contrast ratios for accessibility
-- Clean, modern UI components
-- Responsive design
-- Consistent spacing and typography
+The application includes comprehensive security measures:
 
-## 🔐 Authentication Features
+- **Firestore Security Rules**: Users can only access their own data
+- **Storage Security Rules**: Secure file upload and access
+- **Authentication**: Firebase Auth with email/password
+- **Protected Routes**: Client-side route protection
+- **Data Validation**: Input validation and sanitization
 
-- User registration with email/password
-- User login with email/password
-- Protected routes
-- Automatic redirect to login for unauthenticated users
-- Logout functionality
+## 📊 Features Overview
 
-## 📱 Current Features
+### Dashboard
+- Real-time fitness metrics
+- Daily activity summaries
+- Goal progress tracking
+- Quick access to all features
 
-- **Dashboard**: Welcome screen with user info and quick actions
-- **Authentication**: Complete login/signup flow
-- **Protected Routes**: Secure access to authenticated areas
-- **Responsive Design**: Works on desktop and mobile devices
+### Activity Tracking
+- Log various fitness activities
+- Track duration, distance, and calories
+- Activity history and statistics
+- Filter and search activities
 
-## 🚧 Next Steps (Milestone Two)
+### Goal Management
+- Set multiple fitness goals
+- Track progress with visual indicators
+- Goal achievement predictions
+- Goal history and analytics
 
-The following features are planned for the next milestone:
-- Activity tracking (log workouts, exercises)
-- Goal management
-- Progress visualization
-- User profile management
-- Settings page
+### Workout Management
+- Create detailed workout routines
+- Track sets, reps, and weights
+- Exercise database with 17+ exercises
+- Workout templates and history
+
+### User Profile
+- Comprehensive profile information
+- Health metrics (BMI, BMR, TDEE)
+- Fitness goals and preferences
+- Profile picture support
+
+### Settings
+- Notification preferences
+- Privacy controls
+- Theme and appearance settings
+- Data sync and backup options
+
+### Advanced Analytics
+- Performance metrics and trends
+- Goal achievement analysis
+- Activity distribution visualization
+- AI-powered insights
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
+4. Add tests if applicable
 5. Submit a pull request
 
-## 📄 License
+## 📝 License
 
 This project is licensed under the MIT License.
 
 ## 🆘 Support
 
-If you encounter any issues or have questions, please:
-1. Check the documentation
-2. Search existing issues
-3. Create a new issue with detailed information
+For support and questions:
+- Check the [Firebase Deployment Guide](firebase-deploy.md)
+- Review the [TODO.md](docs/TODO.md) for project status
+- Open an issue on GitHub
+
+## 🎯 Roadmap
+
+- [ ] Mobile app (React Native)
+- [ ] Social features and friend connections
+- [ ] Advanced workout planning
+- [ ] Nutrition tracking
+- [ ] Integration with fitness devices
+- [ ] Push notifications
+- [ ] Offline support
 
 ---
 
-**Last Updated**: July 2025
-**Version**: 1.0.0 (Milestone One Complete)
+**BiFyT** - Your personal fitness companion for tracking, analyzing, and achieving your fitness goals.

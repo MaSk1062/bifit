@@ -8,6 +8,8 @@ import { Dashboard } from '@/components/Dashboard';
 import { ActivityLog } from '@/components/ActivityLog';
 import { WorkoutManagement } from '@/components/WorkoutManagement';
 import { UserProfile } from '@/components/UserProfile';
+import { Settings } from '@/components/Settings';
+import { AdvancedAnalytics } from '@/components/AdvancedAnalytics';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -49,6 +51,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <UserProfile />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/analytics" 
+              element={
+                <ProtectedRoute>
+                  <AdvancedAnalytics />
                 </ProtectedRoute>
               } 
             />

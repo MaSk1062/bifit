@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,120 +9,109 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { 
   User, 
-  Camera,
-  Save,
-  Edit,
-  ArrowLeft,
-  Scale,
+  Calendar, 
+  MapPin, 
+  Edit, 
+  Save, 
+  X, 
   Activity,
-  Heart,
-  Mail,
-  MapPin
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface UserProfileData {
-  id: string;
-  email: string;
-  displayName: string;
   firstName: string;
   lastName: string;
-  dateOfBirth: string;
-  gender: 'male' | 'female' | 'other' | '';
-  height: number; // in cm
-  weight: number; // in kg
+  email: string;
   phone: string;
+  dateOfBirth: string;
+  gender: string;
+  height: number;
+  weight: number;
   location: string;
   bio: string;
+  fitnessLevel: string;
+  primaryGoal: string;
+  dailySteps: number;
+  targetWeight: number;
+  targetCalories: number;
   profilePicture: string;
-  fitnessLevel: 'beginner' | 'intermediate' | 'advanced' | '';
-  goals: string[];
-  preferences: {
-    units: 'metric' | 'imperial';
-    notifications: boolean;
-    privacy: 'public' | 'private' | 'friends';
-  };
-  healthMetrics: {
-    bmi: number;
-    bmiCategory: string;
-    bmr: number; // Basal Metabolic Rate
-    tdee: number; // Total Daily Energy Expenditure
-  };
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export function UserProfile() {
-  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [profileData, setProfileData] = useState<UserProfileData>({
-    id: currentUser?.uid || '',
-    email: currentUser?.email || '',
-    displayName: currentUser?.displayName || '',
     firstName: '',
     lastName: '',
+    email: currentUser?.email || '',
+    phone: '',
     dateOfBirth: '',
     gender: '',
     height: 0,
     weight: 0,
-    phone: '',
     location: '',
     bio: '',
-    profilePicture: '',
     fitnessLevel: '',
-    goals: [],
-    preferences: {
-      units: 'metric',
-      notifications: true,
-      privacy: 'private'
-    },
-    healthMetrics: {
-      bmi: 0,
-      bmiCategory: '',
-      bmr: 0,
-      tdee: 0
-    }
+    primaryGoal: '',
+    dailySteps: 0,
+    targetWeight: 0,
+    targetCalories: 0,
+    profilePicture: '',
+    createdAt: new Date(),
+    updatedAt: new Date()
   });
 
-  // Load profile data on component mount
-  useEffect(() => {
-    loadProfileData();
-  }, [currentUser]);
-
-  // Calculate health metrics when height or weight changes
-  useEffect(() => {
-    if (profileData.height > 0 && profileData.weight > 0) {
-      calculateHealthMetrics();
-    }
-  }, [profileData.height, profileData.weight, profileData.gender, profileData.dateOfBirth]);
-
+  // Load profile data from Firestore
   const loadProfileData = async () => {
-    if (!currentUser) return;
-    
+    if (!currentUser?.uid) return;
+
     setIsLoading(true);
     try {
-      // TODO: Load from Firestore
-      // For now, use mock data
-      const mockData: Partial<UserProfileData> = {
-        firstName: 'John',
-        lastName: 'Doe',
-        dateOfBirth: '1990-01-01',
-        gender: 'male' as const,
-        height: 175,
-        weight: 70,
-        phone: '+1 (555) 123-4567',
-        location: 'New York, NY',
-        bio: 'Fitness enthusiast passionate about health and wellness. Love running, strength training, and trying new workout routines.',
-        profilePicture: '',
-        fitnessLevel: 'intermediate' as const,
-        goals: ['Lose Weight', 'Build Muscle', 'Improve Endurance'],
-        preferences: {
-          units: 'metric' as const,
-          notifications: true,
-          privacy: 'private' as const
-        }
-      };
-
-      setProfileData(prev => ({ ...prev, ...mockData }));
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+             if (userDoc.exists()) {
+         const data = userDoc.data();
+         setProfileData({
+           ...data,
+           email: currentUser.email || data.email,
+           createdAt: data.createdAt?.toDate?.() || new Date(),
+           updatedAt: data.updatedAt?.toDate?.() || new Date()
+         } as UserProfileData);
+       } else {
+        // Create new profile if it doesn't exist
+        const newProfile: UserProfileData = {
+          firstName: '',
+          lastName: '',
+          email: currentUser.email || '',
+          phone: '',
+          dateOfBirth: '',
+          gender: '',
+          height: 0,
+          weight: 0,
+          location: '',
+          bio: '',
+          fitnessLevel: '',
+          primaryGoal: '',
+          dailySteps: 0,
+          targetWeight: 0,
+          targetCalories: 0,
+          profilePicture: '',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        await setDoc(userDocRef, newProfile);
+        setProfileData(newProfile);
+      }
     } catch (error) {
       console.error('Error loading profile data:', error);
     } finally {
@@ -131,106 +119,78 @@ export function UserProfile() {
     }
   };
 
-  const calculateHealthMetrics = () => {
-    const { height, weight, gender, dateOfBirth } = profileData;
-    
-    if (height <= 0 || weight <= 0) return;
+  useEffect(() => {
+    loadProfileData();
+  }, [currentUser?.uid]);
 
-    // Calculate BMI
-    const heightInMeters = height / 100;
-    const bmi = weight / (heightInMeters * heightInMeters);
-    
-    // Determine BMI category
-    let bmiCategory = '';
-    if (bmi < 18.5) bmiCategory = 'Underweight';
-    else if (bmi < 25) bmiCategory = 'Normal weight';
-    else if (bmi < 30) bmiCategory = 'Overweight';
-    else bmiCategory = 'Obese';
+  // Save profile data to Firestore
+  const saveProfileData = async () => {
+    if (!currentUser?.uid) return;
 
-    // Calculate BMR using Mifflin-St Jeor Equation
-    const age = dateOfBirth ? new Date().getFullYear() - new Date(dateOfBirth).getFullYear() : 30;
-    let bmr = 0;
-    
-    if (gender === 'male') {
-      bmr = 10 * weight + 6.25 * height - 5 * age + 5;
-    } else if (gender === 'female') {
-      bmr = 10 * weight + 6.25 * height - 5 * age - 161;
-    } else {
-      // Use average of male and female calculation
-      bmr = (10 * weight + 6.25 * height - 5 * age + 5 + 10 * weight + 6.25 * height - 5 * age - 161) / 2;
-    }
-
-    // Calculate TDEE (assuming moderate activity level)
-    const tdee = bmr * 1.55;
-
-    setProfileData(prev => ({
-      ...prev,
-      healthMetrics: {
-        bmi: Math.round(bmi * 10) / 10,
-        bmiCategory,
-        bmr: Math.round(bmr),
-        tdee: Math.round(tdee)
-      }
-    }));
-  };
-
-  const handleInputChange = (field: keyof UserProfileData, value: any) => {
-    setProfileData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handlePreferenceChange = (field: keyof UserProfileData['preferences'], value: any) => {
-    setProfileData(prev => ({
-      ...prev,
-      preferences: { ...prev.preferences, [field]: value }
-    }));
-  };
-
-  const handleGoalToggle = (goal: string) => {
-    setProfileData(prev => ({
-      ...prev,
-      goals: prev.goals.includes(goal)
-        ? prev.goals.filter(g => g !== goal)
-        : [...prev.goals, goal]
-    }));
-  };
-
-  const saveProfile = async () => {
-    if (!currentUser) return;
-    
-    setIsLoading(true);
+    setIsSaving(true);
     try {
-      // TODO: Save to Firestore
-      console.log('Saving profile data:', profileData);
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const updatedData = {
+        ...profileData,
+        updatedAt: new Date()
+      };
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await updateDoc(userDocRef, updatedData);
+      setProfileData(updatedData);
       setIsEditing(false);
+      setShowSuccess(true);
+      
+      // Hide success message after 3 seconds
+      setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
-      console.error('Error saving profile:', error);
+      console.error('Error saving profile data:', error);
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  const getBMIColor = (bmi: number) => {
-    if (bmi < 18.5) return 'text-blue-600';
-    if (bmi < 25) return 'text-green-600';
-    if (bmi < 30) return 'text-yellow-600';
-    return 'text-red-600';
+  const handleInputChange = (field: keyof UserProfileData, value: string | number) => {
+    setProfileData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const availableGoals = [
-    'Lose Weight', 'Build Muscle', 'Improve Endurance', 'Increase Strength',
-    'Maintain Weight', 'Improve Flexibility', 'Run a Marathon', 'Complete a Triathlon'
-  ];
+  const calculateBMI = () => {
+    if (profileData.height > 0 && profileData.weight > 0) {
+      const heightInMeters = profileData.height / 100;
+      return (profileData.weight / (heightInMeters * heightInMeters)).toFixed(1);
+    }
+    return 'N/A';
+  };
 
-  if (isLoading && !isEditing) {
+  const calculateBMR = () => {
+    if (profileData.height > 0 && profileData.weight > 0 && profileData.dateOfBirth) {
+      const age = new Date().getFullYear() - new Date(profileData.dateOfBirth).getFullYear();
+      if (profileData.gender === 'male') {
+        return Math.round(88.362 + (13.397 * profileData.weight) + (4.799 * profileData.height) - (5.677 * age));
+      } else {
+        return Math.round(447.593 + (9.247 * profileData.weight) + (3.098 * profileData.height) - (4.330 * age));
+      }
+    }
+    return 'N/A';
+  };
+
+  const getBMICategory = (bmi: string) => {
+    const bmiValue = parseFloat(bmi);
+    if (isNaN(bmiValue)) return 'N/A';
+    if (bmiValue < 18.5) return 'Underweight';
+    if (bmiValue < 25) return 'Normal weight';
+    if (bmiValue < 30) return 'Overweight';
+    return 'Obese';
+  };
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
+        <div className="flex items-center space-x-2">
+          <Loader2 className="w-6 h-6 animate-spin text-black" />
+          <span className="text-black">Loading profile...</span>
         </div>
       </div>
     );
@@ -241,344 +201,379 @@ export function UserProfile() {
       {/* Header */}
       <div className="bg-black text-white">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/dashboard')}
-                className="text-white hover:bg-white hover:text-black"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-              <h1 className="text-2xl font-bold">User Profile</h1>
+              <h1 className="text-2xl font-bold">BiFyT</h1>
+              <Badge variant="secondary" className="bg-white text-black">
+                Profile
+              </Badge>
             </div>
-            {!isEditing ? (
-              <Button 
-                onClick={() => setIsEditing(true)}
-                className="bg-white text-black hover:bg-gray-100"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Profile
-              </Button>
-            ) : (
-              <div className="flex space-x-2">
-                <Button 
-                  variant="outline"
-                  onClick={() => setIsEditing(false)}
-                  className="text-white border-white hover:bg-white hover:text-black"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={saveProfile}
-                  disabled={isLoading}
-                  className="bg-white text-black hover:bg-gray-100"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
+            <Button asChild variant="outline" className="text-white border-white hover:bg-white hover:text-black">
+              <Link to="/dashboard">
+                Back to Dashboard
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Profile Header */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-6">
-                <div className="relative">
-                  <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center">
+        {/* Success Message */}
+        {showSuccess && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-green-800">Profile updated successfully!</span>
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Profile Overview */}
+          <div className="lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-black">Profile Overview</CardTitle>
+                <CardDescription>Your basic information</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
                     {profileData.profilePicture ? (
                       <img 
                         src={profileData.profilePicture} 
                         alt="Profile" 
-                        className="w-24 h-24 rounded-full object-cover"
+                        className="w-16 h-16 rounded-full object-cover"
                       />
                     ) : (
-                      <User className="w-12 h-12 text-gray-400" />
+                      <User className="w-8 h-8 text-gray-600" />
                     )}
                   </div>
-                  {isEditing && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0"
-                    >
-                      <Camera className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <div>
+                    <h3 className="font-medium text-black">
+                      {profileData.firstName} {profileData.lastName}
+                    </h3>
+                    <p className="text-sm text-gray-600">{profileData.email}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-black">
-                    {profileData.firstName && profileData.lastName 
-                      ? `${profileData.firstName} ${profileData.lastName}`
-                      : profileData.displayName || 'User'
-                    }
-                  </h2>
-                  <p className="text-gray-600 flex items-center">
-                    <Mail className="w-4 h-4 mr-2" />
-                    {profileData.email}
-                  </p>
-                  {profileData.location && (
-                    <p className="text-gray-600 flex items-center">
-                      <MapPin className="w-4 h-4 mr-2" />
-                      {profileData.location}
-                    </p>
-                  )}
-                  {profileData.fitnessLevel && (
-                    <Badge variant="secondary" className="mt-2">
-                      {profileData.fitnessLevel.charAt(0).toUpperCase() + profileData.fitnessLevel.slice(1)} Level
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Personal Information */}
-            <Card>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm text-gray-600">
+                      {profileData.dateOfBirth ? new Date(profileData.dateOfBirth).toLocaleDateString() : 'Not set'}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm text-gray-600">
+                      {profileData.location || 'Location not set'}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Activity className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm text-gray-600">
+                      {profileData.fitnessLevel || 'Fitness level not set'}
+                    </span>
+                  </div>
+                </div>
+
+                {profileData.bio && (
+                  <div>
+                    <p className="text-sm text-gray-600">{profileData.bio}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Health Metrics */}
+            <Card className="mt-6">
               <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>Your basic profile details</CardDescription>
+                <CardTitle className="text-black">Health Metrics</CardTitle>
+                <CardDescription>Your current health statistics</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input
-                      id="firstName"
-                      value={profileData.firstName}
-                      onChange={(e) => handleInputChange('firstName', e.target.value)}
-                      disabled={!isEditing}
-                    />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-black">{profileData.weight || 0} kg</p>
+                    <p className="text-sm text-gray-600">Current Weight</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      value={profileData.lastName}
-                      onChange={(e) => handleInputChange('lastName', e.target.value)}
-                      disabled={!isEditing}
-                    />
+                  <div className="text-center p-3 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-black">{profileData.height || 0} cm</p>
+                    <p className="text-sm text-gray-600">Height</p>
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                    <Input
-                      id="dateOfBirth"
-                      type="date"
-                      value={profileData.dateOfBirth}
-                      onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                      disabled={!isEditing}
-                    />
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">BMI</span>
+                    <div className="text-right">
+                      <span className="font-medium text-black">{calculateBMI()}</span>
+                      <Badge variant="outline" className="ml-2">
+                        {getBMICategory(calculateBMI())}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="gender">Gender</Label>
-                    <Select 
-                      value={profileData.gender} 
-                      onValueChange={(value: 'male' | 'female' | 'other') => handleInputChange('gender', value)}
-                      disabled={!isEditing}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">BMR</span>
+                    <span className="font-medium text-black">{calculateBMR()} cal/day</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Daily Steps</span>
+                    <span className="font-medium text-black">{profileData.dailySteps.toLocaleString()}</span>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    value={profileData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    disabled={!isEditing}
-                    placeholder="+1 (555) 123-4567"
-                  />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Profile Form */}
+          <div className="lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-black">Profile Information</CardTitle>
+                    <CardDescription>Update your personal and fitness information</CardDescription>
+                  </div>
+                  <div className="flex space-x-2">
+                    {isEditing ? (
+                      <>
+                        <Button 
+                          onClick={saveProfileData} 
+                          disabled={isSaving}
+                          className="bg-black hover:bg-gray-800"
+                        >
+                          {isSaving ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                          )}
+                          Save
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setIsEditing(false)}
+                          disabled={isSaving}
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        onClick={() => setIsEditing(true)}
+                        variant="outline"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Profile
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2">
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Personal Information */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-black">Personal Information</h3>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input
+                        id="firstName"
+                        value={profileData.firstName}
+                        onChange={(e) => handleInputChange('firstName', e.target.value)}
+                        disabled={!isEditing}
+                        placeholder="Enter your first name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input
+                        id="lastName"
+                        value={profileData.lastName}
+                        onChange={(e) => handleInputChange('lastName', e.target.value)}
+                        disabled={!isEditing}
+                        placeholder="Enter your last name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        value={profileData.email}
+                        disabled
+                        className="bg-gray-50"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone</Label>
+                      <Input
+                        id="phone"
+                        value={profileData.phone}
+                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                        disabled={!isEditing}
+                        placeholder="Enter your phone number"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                      <Input
+                        id="dateOfBirth"
+                        type="date"
+                        value={profileData.dateOfBirth}
+                        onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                        disabled={!isEditing}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="gender">Gender</Label>
+                      <Select
+                        value={profileData.gender}
+                        onValueChange={(value) => handleInputChange('gender', value)}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Location</Label>
+                      <Input
+                        id="location"
+                        value={profileData.location}
+                        onChange={(e) => handleInputChange('location', e.target.value)}
+                        disabled={!isEditing}
+                        placeholder="Enter your location"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Fitness Information */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-black">Fitness Information</h3>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="height">Height (cm)</Label>
+                      <Input
+                        id="height"
+                        type="number"
+                        value={profileData.height || ''}
+                        onChange={(e) => handleInputChange('height', parseFloat(e.target.value) || 0)}
+                        disabled={!isEditing}
+                        placeholder="Enter your height"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="weight">Current Weight (kg)</Label>
+                      <Input
+                        id="weight"
+                        type="number"
+                        value={profileData.weight || ''}
+                        onChange={(e) => handleInputChange('weight', parseFloat(e.target.value) || 0)}
+                        disabled={!isEditing}
+                        placeholder="Enter your weight"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="targetWeight">Target Weight (kg)</Label>
+                      <Input
+                        id="targetWeight"
+                        type="number"
+                        value={profileData.targetWeight || ''}
+                        onChange={(e) => handleInputChange('targetWeight', parseFloat(e.target.value) || 0)}
+                        disabled={!isEditing}
+                        placeholder="Enter your target weight"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="dailySteps">Daily Steps Goal</Label>
+                      <Input
+                        id="dailySteps"
+                        type="number"
+                        value={profileData.dailySteps || ''}
+                        onChange={(e) => handleInputChange('dailySteps', parseInt(e.target.value) || 0)}
+                        disabled={!isEditing}
+                        placeholder="Enter your daily steps goal"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="targetCalories">Daily Calorie Goal</Label>
+                      <Input
+                        id="targetCalories"
+                        type="number"
+                        value={profileData.targetCalories || ''}
+                        onChange={(e) => handleInputChange('targetCalories', parseInt(e.target.value) || 0)}
+                        disabled={!isEditing}
+                        placeholder="Enter your daily calorie goal"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="fitnessLevel">Fitness Level</Label>
+                      <Select
+                        value={profileData.fitnessLevel}
+                        onValueChange={(value) => handleInputChange('fitnessLevel', value)}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select fitness level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="beginner">Beginner</SelectItem>
+                          <SelectItem value="intermediate">Intermediate</SelectItem>
+                          <SelectItem value="advanced">Advanced</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="primaryGoal">Primary Goal</Label>
+                      <Select
+                        value={profileData.primaryGoal}
+                        onValueChange={(value) => handleInputChange('primaryGoal', value)}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your primary goal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="weight_loss">Weight Loss</SelectItem>
+                          <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
+                          <SelectItem value="endurance">Endurance</SelectItem>
+                          <SelectItem value="general_fitness">General Fitness</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bio Section */}
+                <div className="mt-6 space-y-2">
                   <Label htmlFor="bio">Bio</Label>
                   <Textarea
                     id="bio"
                     value={profileData.bio}
                     onChange={(e) => handleInputChange('bio', e.target.value)}
                     disabled={!isEditing}
-                    placeholder="Tell us about yourself..."
+                    placeholder="Tell us about yourself and your fitness journey..."
                     rows={3}
                   />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Health Metrics */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Health Metrics</CardTitle>
-                <CardDescription>Your current health statistics</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="height">Height (cm)</Label>
-                    <Input
-                      id="height"
-                      type="number"
-                      value={profileData.height}
-                      onChange={(e) => handleInputChange('height', parseInt(e.target.value) || 0)}
-                      disabled={!isEditing}
-                      min="100"
-                      max="250"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="weight">Weight (kg)</Label>
-                    <Input
-                      id="weight"
-                      type="number"
-                      value={profileData.weight}
-                      onChange={(e) => handleInputChange('weight', parseFloat(e.target.value) || 0)}
-                      disabled={!isEditing}
-                      min="30"
-                      max="300"
-                      step="0.1"
-                    />
-                  </div>
-                </div>
-                
-                {profileData.healthMetrics.bmi > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <Scale className="w-5 h-5 text-gray-600" />
-                        <span className="font-medium">BMI</span>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-xl font-bold ${getBMIColor(profileData.healthMetrics.bmi)}`}>
-                          {profileData.healthMetrics.bmi}
-                        </span>
-                        <p className="text-sm text-gray-600">{profileData.healthMetrics.bmiCategory}</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-2">
-                          <Heart className="w-4 h-4 text-gray-600" />
-                          <span className="text-sm">BMR</span>
-                        </div>
-                        <span className="font-medium">{profileData.healthMetrics.bmr} cal/day</span>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-2">
-                          <Activity className="w-4 h-4 text-gray-600" />
-                          <span className="text-sm">TDEE</span>
-                        </div>
-                        <span className="font-medium">{profileData.healthMetrics.tdee} cal/day</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Fitness Goals */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Fitness Goals</CardTitle>
-                <CardDescription>Select your fitness objectives</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {availableGoals.map((goal) => (
-                    <div key={goal} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={goal}
-                        checked={profileData.goals.includes(goal)}
-                        onChange={() => handleGoalToggle(goal)}
-                        disabled={!isEditing}
-                        className="rounded border-gray-300"
-                      />
-                      <Label htmlFor={goal} className="text-sm cursor-pointer">
-                        {goal}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Preferences */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Preferences</CardTitle>
-                <CardDescription>Customize your experience</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="units">Measurement Units</Label>
-                  <Select 
-                    value={profileData.preferences.units} 
-                    onValueChange={(value: 'metric' | 'imperial') => handlePreferenceChange('units', value)}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="metric">Metric (kg, cm)</SelectItem>
-                      <SelectItem value="imperial">Imperial (lbs, ft)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="privacy">Privacy Level</Label>
-                  <Select 
-                    value={profileData.preferences.privacy} 
-                    onValueChange={(value: 'public' | 'private' | 'friends') => handlePreferenceChange('privacy', value)}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">Public</SelectItem>
-                      <SelectItem value="friends">Friends Only</SelectItem>
-                      <SelectItem value="private">Private</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="notifications"
-                    checked={profileData.preferences.notifications}
-                    onChange={(e) => handlePreferenceChange('notifications', e.target.checked)}
-                    disabled={!isEditing}
-                    className="rounded border-gray-300"
-                  />
-                  <Label htmlFor="notifications" className="text-sm cursor-pointer">
-                    Enable notifications
-                  </Label>
                 </div>
               </CardContent>
             </Card>
