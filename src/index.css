@@ -60,4 +60,65 @@
     background-color: hsl(var(--color-background));
     color: hsl(var(--color-foreground));
   }
+  
+  /* Mobile-specific improvements */
+  @media (max-width: 768px) {
+    /* Improve touch targets */
+    button, 
+    [role="button"],
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Improve form inputs on mobile */
+    input, 
+    select, 
+    textarea {
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    /* Better spacing for mobile */
+    .container {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    
+    /* Improve card spacing on mobile */
+    .card {
+      margin-bottom: 1rem;
+    }
+    
+    /* Better button spacing */
+    .btn-group > * + * {
+      margin-left: 0.5rem;
+    }
+    
+    /* Improve table responsiveness */
+    table {
+      font-size: 0.875rem;
+    }
+    
+    /* Better modal handling on mobile */
+    .modal {
+      padding: 1rem;
+    }
+  }
+  
+  /* Prevent horizontal scroll on mobile */
+  html, body {
+    overflow-x: hidden;
+  }
+  
+  /* Improve focus states for accessibility */
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid hsl(var(--color-ring));
+    outline-offset: 2px;
+  }
 }

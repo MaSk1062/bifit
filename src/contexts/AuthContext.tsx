@@ -39,7 +39,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
-    return signOut(auth);
+    console.log('AuthContext logout called');
+    return signOut(auth).then(() => {
+      console.log('Firebase signOut successful');
+    }).catch((error) => {
+      console.error('Firebase signOut error:', error);
+      throw error;
+    });
   }
 
   useEffect(() => {

@@ -359,6 +359,9 @@ export const deleteGoal = async (goalId: string) => {
 export const addWorkout = async (workoutData: Omit<Workout, 'userId' | 'createdAt' | 'updatedAt'>) => {
   try {
     const user = auth.currentUser;
+    console.log('addWorkout called with user:', user?.uid);
+    console.log('workoutData:', workoutData);
+    
     if (!user) {
       throw new Error('User must be authenticated to add workouts');
     }
@@ -417,7 +420,12 @@ export const addWorkout = async (workoutData: Omit<Workout, 'userId' | 'createdA
       updatedAt: Timestamp.now()
     };
 
+    console.log('Final workout object to save:', workout);
+    console.log('Adding to workouts collection...');
+    
     const docRef = await addDoc(collection(db, 'workouts'), workout);
+    console.log('Workout saved successfully with ID:', docRef.id);
+    
     return { id: docRef.id, ...workout };
   } catch (error) {
     console.error('Error adding workout:', error);

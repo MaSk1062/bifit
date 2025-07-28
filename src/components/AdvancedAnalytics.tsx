@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { MobileHeader } from '@/components/MobileHeader';
 import { Progress } from '@/components/ui/progress';
 import { 
   BarChart3, 
@@ -398,8 +399,11 @@ export function AdvancedAnalytics() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="bg-black text-white">
+      {/* Mobile Header */}
+      <MobileHeader title="Analytics" showBackButton onBack={() => window.history.back()} />
+      
+      {/* Desktop Header */}
+      <div className="bg-black text-white hidden md:block">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
@@ -424,7 +428,7 @@ export function AdvancedAnalytics() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
         {/* Time Range Selector */}
         <div className="mb-8">
           <div className="flex items-center justify-between">

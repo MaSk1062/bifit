@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { MobileHeader } from '@/components/MobileHeader';
 import {
   Activity,
   Calendar,
@@ -161,19 +162,22 @@ export function ActivityLog() {
 
   return (
     <div className="min-h-screen bg-white font-inter">
-      {/* Header */}
-      <div className="bg-black text-white">
+      {/* Mobile Header */}
+      <MobileHeader title="Log Activity" showBackButton onBack={() => window.history.back()} />
+      
+      {/* Desktop Header */}
+      <div className="bg-black text-white hidden md:block">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold">BiFyT</h1>
-              <Badge variant="secondary" className="bg-white text-black rounded-md">
+              <h1 className="text-xl sm:text-2xl font-bold">BiFyT</h1>
+              <Badge variant="secondary" className="bg-white text-black text-xs sm:text-sm">
                 Log Activity
               </Badge>
             </div>
-            <Button asChild variant="outline" className="bg-black text-white border-white hover:bg-white hover:text-black rounded-md shadow-sm">
+            <Button asChild variant="outline" size="sm" className="bg-black text-white border-white hover:bg-white hover:text-black rounded-md shadow-sm text-xs w-full sm:w-auto">
               <Link to="/dashboard">
-                <ArrowLeft className="w-4 h-4 mr-2" />
+                <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                 Back to Dashboard
               </Link>
             </Button>
@@ -181,40 +185,40 @@ export function ActivityLog() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6 sm:py-8 pb-20 md:pb-8">
         {/* Success/Error Messages */}
         {showSuccess && (
           <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-lg flex items-center space-x-2 shadow-sm">
             <CheckCircle className="w-5 h-5 text-green-600" />
-            <span className="text-green-800 font-medium">Activity logged successfully! Redirecting to dashboard...</span>
+            <span className="text-green-800 font-medium text-sm sm:text-base">Activity logged successfully! Redirecting to dashboard...</span>
           </div>
         )}
 
         {showError && (
           <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg flex items-center space-x-2 shadow-sm">
             <AlertTriangle className="w-5 h-5 text-red-600" />
-            <span className="text-red-800 font-medium">{errorMessage}</span>
+            <span className="text-red-800 font-medium text-sm sm:text-base">{errorMessage}</span>
           </div>
         )}
 
-        <div className="max-w-4xl mx-auto"> {/* Increased max-width for better layout */}
-          <Card className="border-2 border-gray-200 rounded-xl shadow-xl bg-white"> {/* Enhanced card styling */}
-            <CardHeader className="pb-6 bg-gray-50 rounded-t-xl border-b-2 border-gray-200"> {/* Enhanced header */}
-              <CardTitle className="flex items-center space-x-3 text-black text-3xl"> {/* Larger title */}
-                <Activity className="w-8 h-8" /> {/* Larger icon */}
+        <div className="max-w-4xl mx-auto">
+          <Card className="border-2 border-gray-200 rounded-xl shadow-xl bg-white">
+            <CardHeader className="pb-6 bg-gray-50 rounded-t-xl border-b-2 border-gray-200">
+              <CardTitle className="flex items-center space-x-3 text-black text-2xl sm:text-3xl">
+                <Activity className="w-6 h-6 sm:w-8 sm:h-8" />
                 <span>Log New Activity</span>
               </CardTitle>
-              <CardDescription className="text-gray-600 text-lg mt-2">
+              <CardDescription className="text-gray-600 text-base sm:text-lg mt-2">
                 Enter details of your fitness activity below to track your progress and stay motivated.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-8"> {/* Increased padding */}
-              <form onSubmit={handleSubmit} className="space-y-8"> {/* Increased spacing */}
+            <CardContent className="p-6 sm:p-8">
+              <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
 
                 {/* Activity Type & Date Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8"> {/* Two columns for type and date */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                   <div className="space-y-3">
-                    <Label htmlFor="type" className="text-black font-semibold text-lg">Activity Type *</Label>
+                    <Label htmlFor="type" className="text-black font-semibold text-base sm:text-lg">Activity Type *</Label>
                     <Select
                       value={formData.type}
                       onValueChange={(value) => handleInputChange('type', value)}
@@ -236,9 +240,9 @@ export function ActivityLog() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="date" className="text-black font-semibold text-lg">Date *</Label>
+                    <Label htmlFor="date" className="text-black font-semibold text-base sm:text-lg">Date *</Label>
                     <div className="flex items-center space-x-3">
-                      <Calendar className="w-6 h-6 text-gray-700" /> {/* Larger icon */}
+                      <Calendar className="w-6 h-6 text-gray-700" />
                       <Input
                         id="date"
                         type="date"
@@ -252,9 +256,9 @@ export function ActivityLog() {
                 </div>
 
                 {/* Duration, Distance, Calories Section */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8"> {/* Three columns for metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
                   <div className="space-y-3">
-                    <Label htmlFor="duration" className="text-black font-semibold text-lg">Duration (minutes) *</Label>
+                    <Label htmlFor="duration" className="text-black font-semibold text-base sm:text-lg">Duration (minutes) *</Label>
                     <div className="flex items-center space-x-3">
                       <Clock className="w-6 h-6 text-gray-700" />
                       <Input
@@ -271,7 +275,7 @@ export function ActivityLog() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="distance" className="text-black font-semibold text-lg">Distance (km)</Label>
+                    <Label htmlFor="distance" className="text-black font-semibold text-base sm:text-lg">Distance (km)</Label>
                     <div className="flex items-center space-x-3">
                       <MapPin className="w-6 h-6 text-gray-700" />
                       <Input
@@ -288,7 +292,7 @@ export function ActivityLog() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="calories" className="text-black font-semibold text-lg">Calories Burned</Label>
+                    <Label htmlFor="calories" className="text-black font-semibold text-base sm:text-lg">Calories Burned</Label>
                     <div className="flex items-center space-x-3">
                       <Flame className="w-6 h-6 text-gray-700" />
                       <Input
@@ -307,7 +311,7 @@ export function ActivityLog() {
 
                 {/* Notes Section */}
                 <div className="space-y-3">
-                  <Label htmlFor="notes" className="text-black font-semibold text-lg">Notes (Optional)</Label>
+                  <Label htmlFor="notes" className="text-black font-semibold text-base sm:text-lg">Notes (Optional)</Label>
                   <Textarea
                     id="notes"
                     value={formData.notes}
@@ -325,45 +329,45 @@ export function ActivityLog() {
                       <Eye className="w-5 h-5" />
                       <span>Activity Preview</span>
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                       <div className="text-center p-3 bg-white rounded-lg border border-gray-200">
-                        <div className="text-2xl mb-1">{getActivityIcon(formData.type)}</div>
-                        <p className="text-sm text-gray-600">Type</p>
-                        <p className="font-semibold text-black capitalize">{formData.type}</p>
+                        <div className="text-xl sm:text-2xl mb-1">{getActivityIcon(formData.type)}</div>
+                        <p className="text-xs sm:text-sm text-gray-600">Type</p>
+                        <p className="font-semibold text-black capitalize text-sm sm:text-base truncate">{formData.type}</p>
                       </div>
                       <div className="text-center p-3 bg-white rounded-lg border border-gray-200">
-                        <div className="text-2xl mb-1">⏱️</div>
-                        <p className="text-sm text-gray-600">Duration</p>
-                        <p className="font-semibold text-black">{formData.duration || 0} min</p>
+                        <div className="text-xl sm:text-2xl mb-1">⏱️</div>
+                        <p className="text-xs sm:text-sm text-gray-600">Duration</p>
+                        <p className="font-semibold text-black text-sm sm:text-base">{formData.duration || 0} min</p>
                       </div>
                       <div className="text-center p-3 bg-white rounded-lg border border-gray-200">
-                        <div className="text-2xl mb-1">🔥</div>
-                        <p className="text-sm text-gray-600">Calories</p>
-                        <p className="font-semibold text-black">{formData.calories || calculateCalories()} cal</p>
+                        <div className="text-xl sm:text-2xl mb-1">🔥</div>
+                        <p className="text-xs sm:text-sm text-gray-600">Calories</p>
+                        <p className="font-semibold text-black text-sm sm:text-base">{formData.calories || calculateCalories()} cal</p>
                       </div>
                       <div className="text-center p-3 bg-white rounded-lg border border-gray-200">
-                        <div className="text-2xl mb-1">📅</div>
-                        <p className="text-sm text-gray-600">Date</p>
-                        <p className="font-semibold text-black">{formData.date || 'Today'}</p>
+                        <div className="text-xl sm:text-2xl mb-1">📅</div>
+                        <p className="text-xs sm:text-sm text-gray-600">Date</p>
+                        <p className="font-semibold text-black text-sm sm:text-base truncate">{formData.date || 'Today'}</p>
                       </div>
                     </div>
                   </div>
                 )}
 
                 {/* Submit Button */}
-                <div className="flex justify-end space-x-4 pt-4">
+                <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-4">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => navigate('/dashboard')}
-                    className="px-8 py-3 border-2 border-gray-300 text-black hover:bg-gray-50 rounded-lg text-base font-medium"
+                    className="px-6 sm:px-8 py-3 border-2 border-gray-300 text-black hover:bg-gray-50 rounded-lg text-base font-medium w-full sm:w-auto"
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
                     disabled={isSubmitting || !formData.type || !formData.duration}
-                    className="px-8 py-3 bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-500 rounded-lg text-base font-medium shadow-lg"
+                    className="px-6 sm:px-8 py-3 bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-500 rounded-lg text-base font-medium shadow-lg w-full sm:w-auto"
                   >
                     {isSubmitting ? (
                       <>

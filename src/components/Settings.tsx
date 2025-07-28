@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { MobileHeader } from '@/components/MobileHeader';
 import {
   Bell,
   Shield,
@@ -283,8 +284,11 @@ export function Settings() {
 
   return (
     <div className="min-h-screen bg-white font-inter">
-      {/* Header */}
-      <div className="bg-black text-white">
+      {/* Mobile Header */}
+      <MobileHeader title="Settings" showBackButton onBack={() => window.history.back()} />
+      
+      {/* Desktop Header */}
+      <div className="bg-black text-white hidden md:block">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
@@ -317,7 +321,7 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
         {/* Success/Error Messages */}
         {showSuccess && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2 shadow-sm">
